@@ -15,12 +15,13 @@ type Group struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Source      string    `json:"source"`
+	ExternalID  string    `json:"external_id,omitempty"`
 	Members     int       `json:"members"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
 func (s *Store) Groups(ctx context.Context) ([]Group, error) {
-	rows, err := s.DB.Query(ctx, `SELECT g.id, g.name, g.description, g.source, count(m.user_id), g.created_at
+	rows, err := s.DB.Query(ctx, `SELECT g.id, g.name, g.description, g.source, coalesce(g.external_id, ''), count(m.user_id), g.created_at
 		FROM groups g LEFT JOIN group_members m ON m.group_id = g.id GROUP BY g.id ORDER BY lower(g.name)`)
 	if err != nil {
 		return nil, err
@@ -29,7 +30,7 @@ func (s *Store) Groups(ctx context.Context) ([]Group, error) {
 	out := []Group{}
 	for rows.Next() {
 		var g Group
-		if err := rows.Scan(&g.ID, &g.Name, &g.Description, &g.Source, &g.Members, &g.CreatedAt); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &g.Description, &g.Source, &g.ExternalID, &g.Members, &g.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, g)
@@ -39,8 +40,8 @@ func (s *Store) Groups(ctx context.Context) ([]Group, error) {
 
 func (s *Store) GroupByID(ctx context.Context, id string) (Group, error) {
 	var g Group
-	err := s.DB.QueryRow(ctx, `SELECT g.id, g.name, g.description, g.source, (SELECT count(*) FROM group_members WHERE group_id = g.id), g.created_at
-		FROM groups g WHERE g.id = $1`, id).Scan(&g.ID, &g.Name, &g.Description, &g.Source, &g.Members, &g.CreatedAt)
+	err := s.DB.QueryRow(ctx, `SELECT g.id, g.name, g.description, g.source, coalesce(g.external_id, ''), (SELECT count(*) FROM group_members WHERE group_id = g.id), g.created_at
+		FROM groups g WHERE g.id = $1`, id).Scan(&g.ID, &g.Name, &g.Description, &g.Source, &g.ExternalID, &g.Members, &g.CreatedAt)
 	return g, mapErr(err)
 }
 
@@ -51,7 +52,11 @@ func (s *Store) CreateGroup(ctx context.Context, g Group) (Group, error) {
 	if g.Source == "" {
 		g.Source = "local"
 	}
-	if _, err := s.DB.Exec(ctx, `INSERT INTO groups (id, name, description, source) VALUES ($1, $2, $3, $4)`, g.ID, g.Name, g.Description, g.Source); err != nil {
+	var ext any
+	if g.ExternalID != "" {
+		ext = g.ExternalID
+	}
+	if _, err := s.DB.Exec(ctx, `INSERT INTO groups (id, name, description, source, external_id) VALUES ($1, $2, $3, $4, $5)`, g.ID, g.Name, g.Description, g.Source, ext); err != nil {
 		return Group{}, mapErr(err)
 	}
 	return s.GroupByID(ctx, g.ID)

@@ -373,6 +373,10 @@ type groupIn struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	Members     []string `json:"members"`
+	// Source and ExternalID create a directory group ahead of its members' first sign-in, so it can get roles:
+	// ldap + the group's DN, or entra + the group's object ID.
+	Source     string `json:"source"`
+	ExternalID string `json:"external_id"`
 }
 
 type groupView struct {
@@ -414,7 +418,26 @@ func (a *App) saveGroup(w http.ResponseWriter, r *http.Request) {
 	var g store.Group
 	var err error
 	if id == "" {
-		g, err = a.st.CreateGroup(ctx, store.Group{Name: in.Name, Description: in.Description})
+		ng := store.Group{Name: in.Name, Description: in.Description}
+		switch in.Source {
+		case "", "local":
+		case "ldap":
+			if !directory.ValidDN(in.ExternalID) {
+				writeError(w, fail(http.StatusBadRequest, "invalid_dn", "Enter the distinguished name of the group, e.g. CN=NOC,OU=Groups,DC=example,DC=com"))
+				return
+			}
+			ng.Source, ng.ExternalID = "ldap", directory.NormalizeDN(in.ExternalID)
+		case "entra":
+			if !entra.ValidGroupID(in.ExternalID) {
+				writeError(w, fail(http.StatusBadRequest, "invalid_group_id", "Enter the object ID of the Entra group"))
+				return
+			}
+			ng.Source, ng.ExternalID = "entra", strings.ToLower(strings.TrimSpace(in.ExternalID))
+		default:
+			writeError(w, fail(http.StatusBadRequest, "invalid_source", "A group is local, ldap or entra"))
+			return
+		}
+		g, err = a.st.CreateGroup(ctx, ng)
 	} else {
 		if g, err = a.st.GroupByID(ctx, id); err == nil {
 			g.Name, g.Description = in.Name, in.Description

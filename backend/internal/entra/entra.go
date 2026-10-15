@@ -15,7 +15,7 @@ import (
 const (
 	SecretPath   = "entra"
 	SecretKey    = "client_secret"
-	CallbackPath = "/api/auth/entra/callback"
+	CallbackPath = "/api/v1/auth/sso/entra/callback"
 
 	CloudGlobal = "global"
 	CloudUSGov  = "usgov"

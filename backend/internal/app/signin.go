@@ -184,7 +184,7 @@ func (a *App) checkLDAP(ctx context.Context, username, password string) (store.U
 		slog.Warn("ldap sign-in failed", "err", err)
 		return store.User{}, fail(http.StatusBadGateway, "directory_unavailable", "The directory does not answer. Try again later")
 	}
-	u, err := a.upsertExternal(ctx, "ldap", strings.ToLower(id.DN), id.Username, id.Email, id.Name, true)
+	u, err := a.upsertExternal(ctx, "ldap", directory.NormalizeDN(id.DN), id.Username, id.Email, id.Name, true)
 	if err != nil {
 		return u, err
 	}

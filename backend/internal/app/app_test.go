@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/sbrw-evc/spa/internal/app"
+	"github.com/sbrw-evc/spa/internal/directory/directorytest"
 	"github.com/sbrw-evc/spa/internal/oidcx"
 	"github.com/sbrw-evc/spa/internal/passkey/passkeytest"
 	"github.com/sbrw-evc/spa/internal/secrets"
@@ -352,5 +353,54 @@ func TestPasskeys(t *testing.T) {
 	}
 	if signed.User["username"] != "admin" || signed.User["session_method"] != "passkey" {
 		t.Fatalf("signed in as %v", signed.User)
+	}
+}
+
+func TestDirectorySignInAndGroupRoles(t *testing.T) {
+	h := newHarness(t)
+	admin := h.adminBrowser()
+	const base, svc, noc = "dc=example,dc=org", "cn=spa,ou=services,dc=example,dc=org", "cn=noc,ou=groups,dc=example,dc=org"
+	ldapSrv := directorytest.Start(t,
+		directorytest.Entry{DN: base},
+		directorytest.Entry{DN: svc, Password: "svc-secret-1"},
+		directorytest.Entry{DN: "uid=anna,ou=people,dc=example,dc=org", Password: "anna-pass-1", Attrs: map[string][]string{
+			"objectClass": {"inetOrgPerson"}, "uid": {"anna"}, "cn": {"Anna Ivanova"}, "mail": {"anna@example.org"}}},
+		directorytest.Entry{DN: noc, Attrs: map[string][]string{"objectClass": {"groupOfNames"}, "cn": {"noc"}, "member": {"uid=anna,ou=people,dc=example,dc=org"}}},
+	)
+	var res map[string]any
+	if code := h.call(admin, "PUT", "/api/v1/settings/ldap", map[string]any{"config": map[string]any{"enabled": true, "kind": "openldap", "url": ldapSrv.URL,
+		"bind_dn": svc, "base_dn": base}, "bind_password": "svc-secret-1"}, &res); code != 200 {
+		t.Fatalf("ldap settings: %d %v", code, res)
+	}
+	// the directory group gets a role before anyone from it has signed in
+	var group map[string]any
+	if code := h.call(admin, "POST", "/api/v1/groups", map[string]any{"name": "NOC", "source": "ldap", "external_id": "CN=NOC,OU=Groups,DC=example,DC=org"}, &group); code != http.StatusCreated {
+		t.Fatalf("directory group: %d %v", code, group)
+	}
+	var conn app.Connection
+	if code := h.call(admin, "POST", "/api/v1/applications", map[string]any{"type": "inventory-db", "base_url": "https://inventory.example.com",
+		"assignments": []map[string]string{{"subject_type": "group", "subject_id": group["id"].(string), "role": "editor"}}}, &conn); code != http.StatusCreated {
+		t.Fatalf("connect: %d", code)
+	}
+	b := h.browser()
+	var signed struct {
+		User struct {
+			Source       string `json:"source"`
+			Groups       []string
+			Applications []struct {
+				Name  string   `json:"name"`
+				Roles []string `json:"roles"`
+			} `json:"applications"`
+		} `json:"user"`
+	}
+	if code := h.call(b, "POST", "/api/v1/auth/password", map[string]string{"username": "anna", "password": "anna-pass-1"}, &signed); code != 200 {
+		t.Fatalf("directory sign-in: %d", code)
+	}
+	if signed.User.Source != "ldap" || len(signed.User.Applications) != 1 || signed.User.Applications[0].Roles[0] != "editor" {
+		t.Fatalf("anna = %+v", signed.User)
+	}
+	var e apiErr
+	if code := h.call(h.browser(), "POST", "/api/v1/auth/password", map[string]string{"username": "anna", "password": "wrong"}, &e); code != http.StatusUnauthorized {
+		t.Fatalf("wrong directory password: %d %+v", code, e)
 	}
 }
