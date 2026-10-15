@@ -53,7 +53,9 @@ func New(cfg Config, st *store.Store, sec secrets.Store) *App {
 		cfg.SessionHours = 12
 	}
 	cfg.PublicURL = strings.TrimRight(cfg.PublicURL, "/")
-	return &App{cfg: cfg, st: st, sec: sec, ceremonies: passkey.NewCeremonies(), keys: &signingKeys{sec: sec},
+	c := passkey.NewCeremonies()
+	c.Keeper = store.Ceremonies{S: st}
+	return &App{cfg: cfg, st: st, sec: sec, ceremonies: c, keys: &signingKeys{sec: sec},
 		state: &stateKey{sec: sec}, limiter: newLimiter(), now: time.Now, syncing: map[string]bool{}}
 }
 

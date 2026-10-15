@@ -14,20 +14,20 @@ import (
 
 // account is the signed-in person as the web app sees them, with the applications they can open.
 type account struct {
-	ID                  string       `json:"id"`
-	Username            string       `json:"username"`
-	Name                string       `json:"name"`
-	Email               string       `json:"email"`
-	Source              string       `json:"source"`
-	SPARole             string       `json:"spa_role"`
-	MustChange          bool         `json:"must_change"`
-	PasswordExpiresAt   *time.Time   `json:"password_expires_at,omitempty"`
-	PasswordExpiresSoon bool         `json:"password_expires_soon"`
-	Passkeys            int          `json:"passkeys"`
-	PasskeysEnabled     bool         `json:"passkeys_enabled"`
-	Groups              []string     `json:"groups"`
+	ID                  string        `json:"id"`
+	Username            string        `json:"username"`
+	Name                string        `json:"name"`
+	Email               string        `json:"email"`
+	Source              string        `json:"source"`
+	SPARole             string        `json:"spa_role"`
+	MustChange          bool          `json:"must_change"`
+	PasswordExpiresAt   *time.Time    `json:"password_expires_at,omitempty"`
+	PasswordExpiresSoon bool          `json:"password_expires_soon"`
+	Passkeys            int           `json:"passkeys"`
+	PasskeysEnabled     bool          `json:"passkeys_enabled"`
+	Groups              []string      `json:"groups"`
 	Applications        []appLauncher `json:"applications"`
-	SessionMethod       string       `json:"session_method"`
+	SessionMethod       string        `json:"session_method"`
 }
 
 type appLauncher struct {

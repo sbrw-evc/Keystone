@@ -306,7 +306,7 @@ func (s *Store) DeleteSessions(ctx context.Context, userID, id, keep string) err
 }
 
 func (s *Store) PurgeExpired(ctx context.Context) {
-	s.DB.Exec(ctx, `DELETE FROM sessions WHERE expires_at < now()`)  //nolint:errcheck
+	s.DB.Exec(ctx, `DELETE FROM sessions WHERE expires_at < now()`)    //nolint:errcheck
 	s.DB.Exec(ctx, `DELETE FROM oauth_codes WHERE expires_at < now()`) //nolint:errcheck
 }
 
@@ -551,4 +551,22 @@ func (s *Store) PutSealed(ctx context.Context, path string, b []byte) error {
 func (s *Store) DeleteSealed(ctx context.Context, path string) error {
 	_, err := s.DB.Exec(ctx, `DELETE FROM secrets WHERE path = $1`, path)
 	return err
+}
+
+// ---- passkey ceremonies (passkey.Keeper)
+
+// Ceremonies keeps started passkey ceremonies in the database.
+type Ceremonies struct{ S *Store }
+
+func (c Ceremonies) Put(id string, data []byte, expiry time.Time) error {
+	ctx := context.Background()
+	c.S.DB.Exec(ctx, `DELETE FROM passkey_ceremonies WHERE expires_at < now()`) //nolint:errcheck
+	_, err := c.S.DB.Exec(ctx, `INSERT INTO passkey_ceremonies (id, data, expires_at) VALUES ($1, $2, $3)`, id, data, expiry)
+	return err
+}
+
+func (c Ceremonies) Take(id string) ([]byte, bool) {
+	var data []byte
+	err := c.S.DB.QueryRow(context.Background(), `DELETE FROM passkey_ceremonies WHERE id = $1 AND expires_at > now() RETURNING data`, id).Scan(&data)
+	return data, err == nil
 }

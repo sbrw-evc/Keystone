@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
-
 )
 
 var (
@@ -101,16 +101,24 @@ func credential(k Passkey) webauthn.Credential {
 
 // ceremony is a started ceremony, kept until its answer.
 type ceremony struct {
-	party   Party
-	session webauthn.SessionData
-	userID  string
-	expiry  time.Time
+	Party   Party                `json:"party"`
+	Session webauthn.SessionData `json:"session"`
+	UserID  string               `json:"user_id"`
+	Expiry  time.Time            `json:"expiry"`
 }
 
-// Ceremonies keeps started ceremonies in memory for a few minutes.
+// Keeper stores started ceremonies where every replica finds them (a database); Take must remove what it
+// returns, so an answer is accepted once.
+type Keeper interface {
+	Put(id string, data []byte, expiry time.Time) error
+	Take(id string) ([]byte, bool)
+}
+
+// Ceremonies keeps started ceremonies for a few minutes: in a Keeper when one is set, else in memory.
 type Ceremonies struct {
-	mu sync.Mutex
-	m  map[string]ceremony
+	Keeper Keeper
+	mu     sync.Mutex
+	m      map[string]ceremony
 }
 
 const (
@@ -125,11 +133,16 @@ func (c *Ceremonies) put(x ceremony) string {
 	_, _ = rand.Read(raw)
 	id := base64.RawURLEncoding.EncodeToString(raw)
 	now := time.Now()
-	x.expiry = now.Add(ceremonyTTL)
+	x.Expiry = now.Add(ceremonyTTL)
+	if c.Keeper != nil {
+		if data, err := json.Marshal(x); err == nil && c.Keeper.Put(id, data, x.Expiry) == nil {
+			return id
+		}
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for k, v := range c.m {
-		if now.After(v.expiry) {
+		if now.After(v.Expiry) {
 			delete(c.m, k)
 		}
 	}
@@ -144,11 +157,19 @@ func (c *Ceremonies) put(x ceremony) string {
 }
 
 func (c *Ceremonies) take(id string) (ceremony, bool) {
+	if c.Keeper != nil {
+		if data, ok := c.Keeper.Take(id); ok {
+			var x ceremony
+			if json.Unmarshal(data, &x) == nil {
+				return x, time.Now().Before(x.Expiry)
+			}
+		}
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	x, ok := c.m[id]
 	delete(c.m, id)
-	return x, ok && time.Now().Before(x.expiry)
+	return x, ok && time.Now().Before(x.Expiry)
 }
 
 // Started is a ceremony to hand to the browser: its ID and the options of
@@ -177,17 +198,17 @@ func (c *Ceremonies) BeginRegistration(p Party, userID string, acc Account) (Sta
 	if err != nil {
 		return Started{}, err
 	}
-	return Started{Ceremony: c.put(ceremony{party: p, session: *session, userID: userID}), Options: opts}, nil
+	return Started{Ceremony: c.put(ceremony{Party: p, Session: *session, UserID: userID}), Options: opts}, nil
 }
 
 // FinishRegistration checks the browser's answer and returns the new passkey. The account
 // must be the one the ceremony began for.
 func (c *Ceremonies) FinishRegistration(id, userID string, acc Account, body []byte, now time.Time) (Passkey, error) {
 	x, ok := c.take(id)
-	if !ok || x.userID != userID {
+	if !ok || x.UserID != userID {
 		return Passkey{}, ErrCeremony
 	}
-	w, err := x.party.web()
+	w, err := x.Party.web()
 	if err != nil {
 		return Passkey{}, err
 	}
@@ -195,7 +216,7 @@ func (c *Ceremonies) FinishRegistration(id, userID string, acc Account, body []b
 	if err != nil {
 		return Passkey{}, fmt.Errorf("%w: %v", ErrRejected, err)
 	}
-	cred, err := w.CreateCredential(acc, x.session, parsed)
+	cred, err := w.CreateCredential(acc, x.Session, parsed)
 	if err != nil {
 		return Passkey{}, fmt.Errorf("%w: %v", ErrRejected, err)
 	}
@@ -221,7 +242,7 @@ func (c *Ceremonies) BeginLogin(p Party) (Started, error) {
 	if err != nil {
 		return Started{}, err
 	}
-	return Started{Ceremony: c.put(ceremony{party: p, session: *session}), Options: opts}, nil
+	return Started{Ceremony: c.put(ceremony{Party: p, Session: *session}), Options: opts}, nil
 }
 
 // Lookup finds the account that has the credential.
@@ -231,10 +252,10 @@ type Lookup func(credentialID, userHandle []byte) (Account, error)
 // sign counter and use time.
 func (c *Ceremonies) FinishLogin(id string, body []byte, lookup Lookup, now time.Time) (Account, Passkey, error) {
 	x, ok := c.take(id)
-	if !ok || x.userID != "" {
+	if !ok || x.UserID != "" {
 		return Account{}, Passkey{}, ErrCeremony
 	}
-	w, err := x.party.web()
+	w, err := x.Party.web()
 	if err != nil {
 		return Account{}, Passkey{}, err
 	}
@@ -250,7 +271,7 @@ func (c *Ceremonies) FinishLogin(id string, body []byte, lookup Lookup, now time
 		}
 		acc = a
 		return a, nil
-	}, x.session, parsed)
+	}, x.Session, parsed)
 	if errors.Is(err, ErrUnknown) || user == nil {
 		return Account{}, Passkey{}, ErrUnknown
 	}
