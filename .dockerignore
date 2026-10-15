@@ -1,0 +1,7 @@
+.git
+**/node_modules
+web/dist
+backend/spa
+docs/screens
+.env
+*.log
