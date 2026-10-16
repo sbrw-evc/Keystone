@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sbrw-evc/spa/internal/directory"
-	"github.com/sbrw-evc/spa/internal/directory/directorytest"
+	"github.com/sbrw-evc/keystone/internal/directory"
+	"github.com/sbrw-evc/keystone/internal/directory/directorytest"
 )
 
 const (

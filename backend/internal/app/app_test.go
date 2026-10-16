@@ -20,12 +20,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/sbrw-evc/spa/internal/app"
-	"github.com/sbrw-evc/spa/internal/directory/directorytest"
-	"github.com/sbrw-evc/spa/internal/oidcx"
-	"github.com/sbrw-evc/spa/internal/passkey/passkeytest"
-	"github.com/sbrw-evc/spa/internal/secrets"
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/app"
+	"github.com/sbrw-evc/keystone/internal/directory/directorytest"
+	"github.com/sbrw-evc/keystone/internal/oidcx"
+	"github.com/sbrw-evc/keystone/internal/passkey/passkeytest"
+	"github.com/sbrw-evc/keystone/internal/secrets"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 // testDB makes a fresh database on SPA_TEST_POSTGRES (a server URL with a database the test may create others from).
@@ -179,7 +179,7 @@ func TestApplicationSignInAndFederation(t *testing.T) {
 		t.Fatalf("key content %+v", key)
 	}
 
-	// the application sends the person to SPA; without a session the sign-in page takes the sealed request
+	// the application sends the person to Keystone; without a session the sign-in page takes the sealed request
 	redirect := appURL + "/api/auth/spa/callback"
 	verifier, challenge := pkce()
 	q := url.Values{"client_id": {key.ClientID}, "redirect_uri": {redirect}, "response_type": {"code"}, "scope": {"openid profile email groups roles"},
@@ -219,7 +219,7 @@ func TestApplicationSignInAndFederation(t *testing.T) {
 	if err == nil {
 		t.Fatal("a wrong PKCE verifier was accepted")
 	}
-	// a code is single use, so get a new one with the SPA session (no password this time)
+	// a code is single use, so get a new one with the Keystone session (no password this time)
 	res, _ = person.Get(h.url + "/oauth2/authorize?" + q.Encode())
 	back, _ = url.Parse(res.Header.Get("Location"))
 	if back.Query().Get("code") == "" {
@@ -391,6 +391,10 @@ func TestDirectorySignInAndGroupRoles(t *testing.T) {
 	if code := h.call(admin, "POST", "/api/v1/applications", map[string]any{"type": "inventory-db", "base_url": "https://inventory.example.com",
 		"assignments": []map[string]string{{"subject_type": "group", "subject_id": group["id"].(string), "role": "editor"}}}, &conn); code != http.StatusCreated {
 		t.Fatalf("connect: %d", code)
+	}
+	// "inventory-db" is the type ID from before Inventory DB became Ledger: still accepted, stored as the new one
+	if conn.Application.Type != "ledger" || conn.Application.Name != "Ledger" {
+		t.Fatalf("legacy type: %q %q", conn.Application.Type, conn.Application.Name)
 	}
 	b := h.browser()
 	var signed struct {

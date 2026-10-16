@@ -8,7 +8,7 @@ import { isAdmin, useAuth, useLoad } from '../lib/auth';
 import { toast } from '../lib/toast';
 
 export function groupSource(s: string, t: TFn) {
-  const m: Record<string, string> = { local: t('SPA'), ldap: 'LDAP / AD', entra: 'Entra ID', google: 'Google', apple: 'Apple', oidc: 'OpenID Connect' };
+  const m: Record<string, string> = { local: t('Keystone'), ldap: 'LDAP / AD', entra: 'Entra ID', google: 'Google', apple: 'Apple', oidc: 'OpenID Connect' };
   return m[s] ?? s;
 }
 
@@ -67,7 +67,7 @@ function GroupDialog({ group, users, onClose, onSaved }: { group: Group | null; 
             value={source}
             onChange={setSource}
             options={[
-              { value: 'local', label: t('SPA group') },
+              { value: 'local', label: t('Keystone group') },
               { value: 'ldap', label: 'LDAP / AD' },
               { value: 'entra', label: 'Entra ID' },
             ]}
@@ -135,7 +135,7 @@ export function GroupsPage() {
     <>
       <PageHead
         title={t('Groups')}
-        subtitle={t('Groups of SPA and groups of the directories. Give a group a role in an application and all its members get it.')}
+        subtitle={t('Groups of Keystone and groups of the directories. Give a group a role in an application and all its members get it.')}
         actions={
           admin && (
             <button type="button" className="btn btn-primary" onClick={() => setEdit('new')}>
@@ -156,7 +156,7 @@ export function GroupsPage() {
         <Loading />
       ) : list.length === 0 ? (
         <div className="card">
-          <Empty icon={<UsersRound className="icon" />} title={t('No groups yet')} text={t('Create SPA groups or add the groups of your directory.')} />
+          <Empty icon={<UsersRound className="icon" />} title={t('No groups yet')} text={t('Create Keystone groups or add the groups of your directory.')} />
         </div>
       ) : (
         <div className="table-card">

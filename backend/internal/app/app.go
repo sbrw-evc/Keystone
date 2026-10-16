@@ -1,4 +1,4 @@
-// Package app is SPA — the Single Point of Authorization of the Umbrella family: sign-in (passwords under the
+// Package app is Keystone — sign-in and access for the Umbrella family: sign-in (passwords under the
 // password policy, passkeys, LDAP / Active Directory, Microsoft Entra ID, Google, Apple, OpenID Connect), people
 // and groups, applications with their roles, the OpenID Connect provider and the federation API (docs/protocol.md).
 package app
@@ -17,16 +17,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/passkey"
-	"github.com/sbrw-evc/spa/internal/secrets"
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/passkey"
+	"github.com/sbrw-evc/keystone/internal/secrets"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
-// Config is the deployment configuration (environment variables, cmd/spa).
+// Config is the deployment configuration (environment variables, cmd/keystone).
 type Config struct {
-	// PublicURL is the address of SPA and its OpenID Connect issuer, e.g. https://spa.example.com.
+	// PublicURL is the address of Keystone and its OpenID Connect issuer, e.g. https://keystone.example.com.
 	PublicURL string
-	// SessionHours is how long an SPA session lasts.
+	// SessionHours is how long a Keystone session lasts.
 	SessionHours int
 	// TrustedProxies are the networks whose X-Forwarded-For is believed.
 	TrustedProxies []*net.IPNet
@@ -60,7 +60,7 @@ func New(cfg Config, st *store.Store, sec secrets.Store) *App {
 		state: &stateKey{sec: sec}, recovery: &stateKey{sec: sec, path: recoveryKeyPath}, limiter: newLimiter(), now: time.Now, syncing: map[string]bool{}}
 }
 
-// Issuer is the address of SPA: the configured public address, else the address of the request.
+// Issuer is the address of Keystone: the configured public address, else the address of the request.
 func (a *App) Issuer(r *http.Request) string {
 	if a.cfg.PublicURL != "" {
 		return a.cfg.PublicURL

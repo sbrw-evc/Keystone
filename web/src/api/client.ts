@@ -31,7 +31,7 @@ export async function api<T>(method: string, path: string, body?: unknown, opts:
   try {
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin' });
   } catch {
-    throw new ApiError(0, 'network', 'SPA does not answer. Check the connection');
+    throw new ApiError(0, 'network', 'Keystone does not answer. Check the connection');
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();

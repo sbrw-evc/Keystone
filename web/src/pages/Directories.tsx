@@ -75,7 +75,7 @@ function LDAPCard({ admin }: { admin: boolean }) {
             <FolderTree size={18} />
             {t('Active Directory / LDAP')}
           </h2>
-          <p className="muted">{t('People sign in with their directory password; SPA reads their groups at each sign-in.')}</p>
+          <p className="muted">{t('People sign in with their directory password; Keystone reads their groups at each sign-in.')}</p>
         </div>
         <Switch checked={c.enabled} disabled={ro} onChange={(v) => set({ enabled: v })} label={c.enabled ? t('On') : t('Off')} />
       </div>
@@ -97,7 +97,7 @@ function LDAPCard({ admin }: { admin: boolean }) {
             <input className="input mono" value={c.base_dn} disabled={ro} onChange={(e) => set({ base_dn: e.target.value })} placeholder="DC=example,DC=com" />
           </Field>
           <Field label={t('Service account (bind DN)')}>
-            <input className="input mono" value={c.bind_dn} disabled={ro} onChange={(e) => set({ bind_dn: e.target.value })} placeholder="CN=svc-spa,OU=Service,DC=example,DC=com" />
+            <input className="input mono" value={c.bind_dn} disabled={ro} onChange={(e) => set({ bind_dn: e.target.value })} placeholder="CN=svc-keystone,OU=Service,DC=example,DC=com" />
           </Field>
           <Field label={t('Service account password')} hint={pwSet ? t('Saved; leave empty to keep it') : undefined}>
             <PasswordInput value={bindPw} onChange={setBindPw} autoComplete="new-password" placeholder={pwSet ? '••••••••' : ''} />
@@ -105,7 +105,7 @@ function LDAPCard({ admin }: { admin: boolean }) {
           <Field label={t('User filter')} hint={t('{username} is replaced with what the person types')}>
             <input className="input mono" value={c.user_filter} disabled={ro} onChange={(e) => set({ user_filter: e.target.value })} />
           </Field>
-          <Field label={t('Administrators group (DN)')} hint={t('Members become SPA administrators (optional)')}>
+          <Field label={t('Administrators group (DN)')} hint={t('Members become Keystone administrators (optional)')}>
             <input className="input mono" value={c.admin_group_dn ?? ''} disabled={ro} onChange={(e) => set({ admin_group_dn: e.target.value })} />
           </Field>
         </div>
@@ -224,7 +224,7 @@ function EntraCard({ admin }: { admin: boolean }) {
             <ProviderMark kind="entra" />
             Microsoft Entra ID
           </h2>
-          <p className="muted">{t('People sign in with their Microsoft work account; SPA reads their groups from Microsoft Graph.')}</p>
+          <p className="muted">{t('People sign in with their Microsoft work account; Keystone reads their groups from Microsoft Graph.')}</p>
         </div>
         <Switch checked={c.enabled} disabled={ro} onChange={(v) => set({ enabled: v })} label={c.enabled ? t('On') : t('Off')} />
       </div>
@@ -253,7 +253,7 @@ function EntraCard({ admin }: { admin: boolean }) {
           <Field label={t('Group allowed to sign in (object ID)')} hint={t('Empty — everyone in the tenant')}>
             <input className="input mono" value={c.user_group_id ?? ''} disabled={ro} onChange={(e) => set({ user_group_id: e.target.value })} />
           </Field>
-          <Field label={t('Administrators group (object ID)')} hint={t('Members become SPA administrators (optional)')}>
+          <Field label={t('Administrators group (object ID)')} hint={t('Members become Keystone administrators (optional)')}>
             <input className="input mono" value={c.admin_group_id ?? ''} disabled={ro} onChange={(e) => set({ admin_group_id: e.target.value })} />
           </Field>
         </div>
@@ -300,7 +300,7 @@ export function DirectoriesPage() {
   const admin = isAdmin(account);
   return (
     <>
-      <PageHead title={t('Directories')} subtitle={t('Where people and their groups come from. Applications never talk to the directories: SPA does.')} />
+      <PageHead title={t('Directories')} subtitle={t('Where people and their groups come from. Applications never talk to the directories: Keystone does.')} />
       <LDAPCard admin={admin} />
       <EntraCard admin={admin} />
     </>

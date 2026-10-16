@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/httpx"
+	"github.com/sbrw-evc/keystone/internal/httpx"
 )
 
 func TestWebCaching(t *testing.T) {

@@ -9,7 +9,7 @@ import { canAudit, useAuth, useLoad } from '../lib/auth';
 export function stepText(id: Step['id'], t: TFn): { title: string; text: string } {
   switch (id) {
     case 'public_url':
-      return { title: t('Set the public address of SPA'), text: t('SPA_PUBLIC_URL is the issuer that applications trust; set it in the deployment.') };
+      return { title: t('Set the public address of Keystone'), text: t('SPA_PUBLIC_URL is the issuer that applications trust; set it in the deployment.') };
     case 'policy':
       return { title: t('Tighten the password policy'), text: t('Block common passwords, keep a password history and lock accounts after wrong passwords.') };
     case 'passkey':
@@ -17,11 +17,11 @@ export function stepText(id: Step['id'], t: TFn): { title: string; text: string 
     case 'directory':
       return { title: t('Connect a directory or a provider'), text: t('Active Directory, LDAP, Microsoft Entra ID, Google, Apple or any OpenID Connect provider.') };
     case 'application':
-      return { title: t('Connect the first application'), text: t('Umbrella Monitoring, Umbrella Flow, Inventory DB, Network Control or any OpenID Connect application.') };
+      return { title: t('Connect the first application'), text: t('Beacon, Current, Ledger, Network Control or any OpenID Connect application.') };
     case 'roles':
       return { title: t('Give people roles in the applications'), text: t('People without a role in an application cannot sign in to it.') };
     case 'second_admin':
-      return { title: t('Add a second administrator'), text: t('So that SPA stays manageable when one administrator is away.') };
+      return { title: t('Add a second administrator'), text: t('So that Keystone stays manageable when one administrator is away.') };
   }
 }
 

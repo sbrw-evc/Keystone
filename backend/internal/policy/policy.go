@@ -29,7 +29,7 @@ const (
 	PolicyMaxLockoutMinutes  = 1440
 )
 
-// Who must use a second factor (an authenticator app) after a password: nobody (it stays optional), SPA
+// Who must use a second factor (an authenticator app) after a password: nobody (it stays optional), Keystone
 // administrators, or everyone who signs in with a password. A passkey sign-in counts as two factors by itself.
 const (
 	SecondFactorOptional = "optional"
@@ -73,7 +73,7 @@ type PasswordPolicy struct {
 	SecondFactor string `json:"second_factor"`
 }
 
-// SecondFactorRequired tells whether a person with this SPA role must use a second factor after a password.
+// SecondFactorRequired tells whether a person with this Keystone role must use a second factor after a password.
 func (p PasswordPolicy) SecondFactorRequired(spaRole string) bool {
 	return p.SecondFactor == SecondFactorEveryone || (p.SecondFactor == SecondFactorAdmins && spaRole == "admin")
 }

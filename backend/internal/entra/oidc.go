@@ -20,7 +20,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/sbrw-evc/spa/internal/directory"
+	"github.com/sbrw-evc/keystone/internal/directory"
 )
 
 const (
@@ -57,7 +57,7 @@ func (c Config) scope() string {
 	return "openid profile email " + c.cloud().Graph + "/User.Read"
 }
 
-// Account is a signed-in Entra user: the immutable object ID and the profile Umbrella keeps.
+// Account is a signed-in Entra user: the immutable object ID and the profile Keystone keeps.
 type Account struct {
 	ObjectID string
 	directory.Identity

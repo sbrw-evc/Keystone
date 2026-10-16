@@ -94,7 +94,7 @@ export function SignInPage() {
       .catch((e) => setError(describeError(e)));
   }, []);
 
-  // Already signed in: into SPA at once; for an application the person confirms (or picks another account).
+  // Already signed in: into Keystone at once; for an application the person confirms (or picks another account).
   useEffect(() => {
     if (!authLoading && account && !request) navigate(ret.startsWith('/') && !ret.startsWith('//') ? ret : '/', { replace: true });
   }, [authLoading, account, request, ret, navigate]);
@@ -177,7 +177,7 @@ export function SignInPage() {
           <>
             <div className="signin-title">
               <h1>{t('Sign in')}</h1>
-              <p className="muted">{org ? t('to {org}', { org }) : t('Single Point of Authorization')}</p>
+              <p className="muted">{org ? t('to {org}', { org }) : t('Sign-in and access for the Umbrella family')}</p>
             </div>
             <div className="signin-form">
               {appName && (

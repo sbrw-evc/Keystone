@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/directory"
-	"github.com/sbrw-evc/spa/internal/entra"
-	"github.com/sbrw-evc/spa/internal/oidcx"
-	"github.com/sbrw-evc/spa/internal/policy"
+	"github.com/sbrw-evc/keystone/internal/directory"
+	"github.com/sbrw-evc/keystone/internal/entra"
+	"github.com/sbrw-evc/keystone/internal/oidcx"
+	"github.com/sbrw-evc/keystone/internal/policy"
 )
 
 // Settings keys and secret paths.
@@ -29,7 +29,7 @@ const (
 
 func secretProvider(kind string) string { return "providers/" + kind }
 
-// General: how SPA presents itself.
+// General: how Keystone presents itself.
 type General struct {
 	// Organization is shown on the sign-in page.
 	Organization string `json:"organization"`
@@ -39,7 +39,7 @@ type General struct {
 
 type PasskeySettings struct {
 	Enabled bool `json:"enabled"`
-	// RPID: the passkey domain; empty = the host name of SPA. A parent domain lets passkeys survive a move of SPA
+	// RPID: the passkey domain; empty = the host name of Keystone. A parent domain lets passkeys survive a move of Keystone
 	// between its subdomains.
 	RPID string `json:"rp_id"`
 }
@@ -53,7 +53,7 @@ type Provider struct {
 	TeamID         string   `json:"team_id"`
 	KeyID          string   `json:"key_id"`
 	AllowedDomains []string `json:"allowed_domains"`
-	// ExistingOnly: only people who already have an SPA account (matched by verified e-mail) may sign in.
+	// ExistingOnly: only people who already have a Keystone account (matched by verified e-mail) may sign in.
 	ExistingOnly bool   `json:"existing_only"`
 	Scopes       string `json:"scopes"`
 	GroupsClaim  string `json:"groups_claim"`

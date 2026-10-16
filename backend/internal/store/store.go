@@ -1,4 +1,4 @@
-// Package store keeps SPA's data in PostgreSQL: people, groups, passkeys, sessions, applications with their
+// Package store keeps Keystone's data in PostgreSQL: people, groups, passkeys, sessions, applications with their
 // roles, settings, sealed secrets and the audit log.
 package store
 

@@ -1,4 +1,4 @@
-// Package secrets keeps SPA's secrets — the signing keys, directory bind passwords, provider client secrets and
+// Package secrets keeps Keystone's secrets — the signing keys, directory bind passwords, provider client secrets and
 // the Apple key — in OpenBao (KV v2) when it is configured, otherwise sealed with AES-256-GCM in the database.
 package secrets
 
@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 // ErrNotFound: no secret at the path.

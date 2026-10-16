@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Boxes, Eye, EyeOff, LoaderCircle, Moon, MoreHorizontal, Network, Server, Sun, Umbrella, Workflow, X } from 'lucide-react';
+import { Activity, AlertTriangle, Boxes, Eye, EyeOff, LoaderCircle, Moon, MoreHorizontal, Network, RadioTower, Server, Sun, X } from 'lucide-react';
 import { AnimatePresence, motion, type Transition } from 'motion/react';
 import { describeError } from '../api/client';
 import type { AppType } from '../api/types';
 import { setLang, useLang, useT, type Lang } from '../i18n';
 import { originOf, setTheme, useTheme } from '../lib/theme';
 
-/** The spring Umbrella uses for pills, chevrons and dialogs. */
+/** The spring Beacon uses for pills, chevrons and dialogs. */
 export const spring: Transition = { type: 'spring', stiffness: 420, damping: 30 };
 
 export function Brand({ subtitle, compact }: { subtitle?: string; compact?: boolean }) {
@@ -16,7 +16,7 @@ export function Brand({ subtitle, compact }: { subtitle?: string; compact?: bool
       <img src="/logo.svg" alt="" width={32} height={32} />
       {!compact && (
         <span>
-          <span className="brand-name">SPA</span>
+          <span className="brand-name">Keystone</span>
           {subtitle && <span className="brand-sub"> · {subtitle}</span>}
         </span>
       )}
@@ -264,10 +264,10 @@ export function Empty({ icon, title, text, action }: { icon: ReactNode; title: s
   );
 }
 
-const APP_ICONS: Record<AppType, typeof Umbrella> = {
-  'umbrella-monitoring': Umbrella,
-  'umbrella-flow': Workflow,
-  'inventory-db': Server,
+const APP_ICONS: Record<AppType, typeof Boxes> = {
+  beacon: RadioTower,
+  current: Activity,
+  ledger: Server,
   'network-control': Network,
   oidc: Boxes,
 };

@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sbrw-evc/spa/internal/directory"
-	"github.com/sbrw-evc/spa/internal/entra"
-	"github.com/sbrw-evc/spa/internal/oidcx"
-	"github.com/sbrw-evc/spa/internal/policy"
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/directory"
+	"github.com/sbrw-evc/keystone/internal/entra"
+	"github.com/sbrw-evc/keystone/internal/oidcx"
+	"github.com/sbrw-evc/keystone/internal/policy"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 func actor(r *http.Request) string {
@@ -103,7 +103,7 @@ func (in *userIn) check() error {
 		in.SPARole = "user"
 	case "admin", "auditor", "user":
 	default:
-		return fail(http.StatusBadRequest, "invalid_role", "The SPA role is admin, auditor or user")
+		return fail(http.StatusBadRequest, "invalid_role", "The Keystone role is admin, auditor or user")
 	}
 	return nil
 }
@@ -216,12 +216,12 @@ func (a *App) updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	me := current(r)
 	if u.ID == me.User.ID && (in.Disabled || in.SPARole != u.SPARole) {
-		writeError(w, fail(http.StatusBadRequest, "self", "You cannot disable yourself or change your own SPA role"))
+		writeError(w, fail(http.StatusBadRequest, "self", "You cannot disable yourself or change your own Keystone role"))
 		return
 	}
 	if u.SPARole == "admin" && (in.SPARole != "admin" || in.Disabled) {
 		if n, _ := a.st.CountAdmins(ctx); n <= 1 {
-			writeError(w, fail(http.StatusBadRequest, "last_admin", "SPA needs at least one enabled administrator"))
+			writeError(w, fail(http.StatusBadRequest, "last_admin", "Keystone needs at least one enabled administrator"))
 			return
 		}
 	}
@@ -273,7 +273,7 @@ func (a *App) deleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if u.SPARole == "admin" {
 		if n, _ := a.st.CountAdmins(ctx); n <= 1 {
-			writeError(w, fail(http.StatusBadRequest, "last_admin", "SPA needs at least one enabled administrator"))
+			writeError(w, fail(http.StatusBadRequest, "last_admin", "Keystone needs at least one enabled administrator"))
 			return
 		}
 	}
@@ -698,7 +698,7 @@ func (a *App) putGeneral(w http.ResponseWriter, r *http.Request) {
 	if in.Passkeys.RPID != "" {
 		host := strings.Split(strings.TrimPrefix(strings.TrimPrefix(a.Issuer(r), "https://"), "http://"), ":")[0]
 		if strings.ContainsAny(in.Passkeys.RPID, " /:@") || !hostWithin(host, in.Passkeys.RPID) {
-			writeError(w, fail(http.StatusBadRequest, "passkey_domain", "The passkey domain must be the domain of SPA or a parent of it"))
+			writeError(w, fail(http.StatusBadRequest, "passkey_domain", "The passkey domain must be the domain of Keystone or a parent of it"))
 			return
 		}
 	}

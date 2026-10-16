@@ -29,7 +29,7 @@ function Private({ children, staff }: { children: ReactNode; staff?: boolean }) 
     <Shell>
       {staff && !canAudit(account) ? (
         <div className="card">
-          <Empty icon={<ShieldOff className="icon" />} title={t('Only SPA administrators and auditors see this page')} action={<Link to="/">{t('Home')}</Link>} />
+          <Empty icon={<ShieldOff className="icon" />} title={t('Only Keystone administrators and auditors see this page')} action={<Link to="/">{t('Home')}</Link>} />
         </div>
       ) : (
         children

@@ -9,13 +9,13 @@ import (
 
 	"rsc.io/qr"
 
-	"github.com/sbrw-evc/spa/internal/secrets"
-	"github.com/sbrw-evc/spa/internal/store"
-	"github.com/sbrw-evc/spa/internal/totp"
+	"github.com/sbrw-evc/keystone/internal/secrets"
+	"github.com/sbrw-evc/keystone/internal/store"
+	"github.com/sbrw-evc/keystone/internal/totp"
 )
 
 // The second factor of the sign-in with a password (local accounts and LDAP / Active Directory): an authenticator
-// app (TOTP, RFC 6238) and one-time recovery codes. The secret is kept like SPA's other secrets — in the secret
+// app (TOTP, RFC 6238) and one-time recovery codes. The secret is kept like Keystone's other secrets — in the secret
 // store (OpenBao, or sealed with the master key in the database) at totp/<user id> — and the recovery codes only as
 // keyed hashes. A passkey sign-in is two-factor by itself and never asks for a code.
 
@@ -194,7 +194,7 @@ func (a *App) beginSetup(ctx context.Context, u store.User) (totpSetup, error) {
 	}
 	issuer := a.general(ctx).Organization
 	if issuer == "" {
-		issuer = "SPA"
+		issuer = "Keystone"
 	}
 	uri := totp.URI(issuer, u.Username, secret)
 	code, err := qr.Encode(uri, qr.M)

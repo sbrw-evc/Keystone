@@ -330,7 +330,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <Menu size={18} />
           </button>
           <Link to="/" className="brand-link">
-            <Brand subtitle={t('Single Point of Authorization')} />
+            <Brand subtitle={t('Sign-in and access for the Umbrella family')} />
           </Link>
         </div>
         <div className="topbar-end">

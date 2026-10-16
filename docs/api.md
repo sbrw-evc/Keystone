@@ -1,16 +1,19 @@
-# SPA HTTP API
+# Keystone HTTP API
 
-SPA answers on one address (`SPA_PUBLIC_URL`, the OpenID Connect issuer) with four interfaces:
+Keystone was called SPA before; the identifiers of this API keep the historical `spa` spelling (`/api/spa/v1/`,
+`spa_session`, `X-Requested-With: spa`, `spa_role`, `spa_admin`, the `spa1.` key prefix, client IDs `spa_…`).
+
+Keystone answers on one address (`SPA_PUBLIC_URL`, the OpenID Connect issuer) with four interfaces:
 
 | | prefix | used by | authentication |
 | --- | --- | --- | --- |
 | [OpenID Connect provider](#1-openid-connect-provider) | `/.well-known/`, `/oauth2/` | applications, browsers | client ID + secret; Bearer access token |
 | [Federation API](#2-federation-api) | `/api/spa/v1/` | applications (server to server) | `Authorization: Bearer <federation token>` |
-| [Web app API](#3-web-app-api-apiv1) | `/api/v1/` | SPA's own web app | session cookie `spa_session` + CSRF header |
+| [Web app API](#3-web-app-api-apiv1) | `/api/v1/` | Keystone's own web app | session cookie `spa_session` + CSRF header |
 | health | `GET /healthz` | load balancers | none |
 
 Everything else serves the web app (`SPA_WEB_DIR`): existing files as they are, any other path gets `index.html`.
-The protocol between SPA and the applications — what they do with this API — is in [protocol.md](protocol.md).
+The protocol between Keystone and the applications — what they do with this API — is in [protocol.md](protocol.md).
 
 Every answer carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, a
 strict `Content-Security-Policy` and, on https, `Strict-Transport-Security`. JSON answers of `/api/` and `/oauth2/`
@@ -26,7 +29,7 @@ are `Cache-Control: no-store` unless stated otherwise.
 
 `code` is stable (the web app branches on it), `message` is English. `violations` (password policy: `length`,
 `digits`, `special`, `mixed_case`, `letters`, `username`, `control`, `common`, `history`) and `extra` appear when
-they apply. Common codes: `unauthorized` (401, sign in first), `forbidden` (403, the SPA role is too low),
+they apply. Common codes: `unauthorized` (401, sign in first), `forbidden` (403, the Keystone role is too low),
 `not_found` (404), `bad_request` (400, not JSON), `csrf` (403), `conflict` (409), `internal` (500).
 
 The OAuth endpoints (`/oauth2/token`, `/oauth2/userinfo`) answer errors as OAuth does:
@@ -41,12 +44,12 @@ claims and the security rules.
 
 ```json
 {
-  "issuer": "https://spa.example.com",
-  "authorization_endpoint": "https://spa.example.com/oauth2/authorize",
-  "token_endpoint": "https://spa.example.com/oauth2/token",
-  "userinfo_endpoint": "https://spa.example.com/oauth2/userinfo",
-  "jwks_uri": "https://spa.example.com/oauth2/jwks",
-  "end_session_endpoint": "https://spa.example.com/oauth2/logout",
+  "issuer": "https://keystone.example.com",
+  "authorization_endpoint": "https://keystone.example.com/oauth2/authorize",
+  "token_endpoint": "https://keystone.example.com/oauth2/token",
+  "userinfo_endpoint": "https://keystone.example.com/oauth2/userinfo",
+  "jwks_uri": "https://keystone.example.com/oauth2/jwks",
+  "end_session_endpoint": "https://keystone.example.com/oauth2/logout",
   "response_types_supported": ["code"],
   "grant_types_supported": ["authorization_code"],
   "subject_types_supported": ["public"],
@@ -73,16 +76,16 @@ public, max-age=300`.
 | `scope` | must contain `openid` |
 | `code_challenge`, `code_challenge_method` | required, `S256`, challenge ≥ 43 characters |
 | `state`, `nonce` | required |
-| `prompt` | `login` asks again even with an SPA session; `none` fails with `login_required` instead of showing the sign-in page |
+| `prompt` | `login` asks again even with a Keystone session; `none` fails with `login_required` instead of showing the sign-in page |
 | `login_hint` | user name to put into the sign-in form |
 | `idp_hint` | `password`, `passkey`, `ldap`, `entra`, `google`, `apple`, `oidc`: open that method directly |
 
 Errors after the client and the redirect address are known go back to the application:
 `<redirect_uri>?error=…&error_description=…&state=…&iss=…`.
 
-- With an SPA session (and no `prompt=login`) SPA answers `302` to `<redirect_uri>?code=…&state=…&iss=…` — or
+- With a Keystone session (and no `prompt=login`) Keystone answers `302` to `<redirect_uri>?code=…&state=…&iss=…` — or
   `error=access_denied` when the person has no role in the application.
-- Without one SPA seals the request (30 minutes) and redirects to the web app:
+- Without one Keystone seals the request (30 minutes) and redirects to the web app:
   `/signin?request=<sealed>&app=<name>[&method=<idp_hint>][&login_hint=…]`. The sign-in page passes `request` to
   the sign-in calls below (or to `POST /api/v1/auth/continue`), which then return the application's redirect in
   `next`.
@@ -106,7 +109,7 @@ The ID token (RS256, 5 minutes) carries `iss`, `aud` (client ID), `iat`, `exp`, 
 `preferred_username`, `name`, `email`, `email_verified`, `roles` (the person's roles in this application),
 `groups`, `spa_admin`, `sid`, `auth_time`, `amr`. The access token (10 minutes) is only good for user info.
 Errors: `invalid_client` (401), `unsupported_grant_type`, `invalid_grant` (unknown/expired/used code, other
-application, other redirect address, PKCE mismatch, disabled account, ended SPA session, no role).
+application, other redirect address, PKCE mismatch, disabled account, ended Keystone session, no role).
 
 ### `GET|POST /oauth2/userinfo`
 
@@ -115,14 +118,14 @@ application, other redirect address, PKCE mismatch, disabled account, ended SPA 
 
 ### `GET /oauth2/logout`
 
-`?post_logout_redirect_uri=…&client_id=…` — ends the SPA session and redirects to `post_logout_redirect_uri` when it
+`?post_logout_redirect_uri=…&client_id=…` — ends the Keystone session and redirects to `post_logout_redirect_uri` when it
 is a registered sign-out address (or the address) of the application, else to `/signin?signed_out=1`.
 
 ## 2. Federation API
 
 `Authorization: Bearer <token>` — the `token` of the application's connection key. `401 unauthorized` when the
 token is missing or no longer valid (the key was replaced or the application removed). GET answers carry an
-`ETag`; with a matching `If-None-Match` SPA answers `304 Not Modified`.
+`ETag`; with a matching `If-None-Match` Keystone answers `304 Not Modified`.
 
 ### `GET /api/spa/v1/config`
 
@@ -131,8 +134,8 @@ token is missing or no longer valid (the key was replaced or the application rem
   "application": {"id": "app_…", "name": "Network Control", "type": "network-control"},
   "roles": [{"id": "admin", "name": "Administrator", "description": "…"}],
   "methods": [{"id": "password", "title": "Password"}, {"id": "passkey", "title": "Passkey"}],
-  "sign_out_url": "https://spa.example.com/oauth2/logout",
-  "account_url": "https://spa.example.com/profile"
+  "sign_out_url": "https://keystone.example.com/oauth2/logout",
+  "account_url": "https://keystone.example.com/profile"
 }
 ```
 
@@ -158,9 +161,9 @@ Role IDs match `[a-z0-9_.:-]{1,64}`, 1–200 roles. Answer: `{"roles": [...]}` a
 
 JSON in and out. The session is the HttpOnly cookie `spa_session` (`SameSite=Lax`, `Secure` on https) set by the
 sign-in calls. **Every request other than GET/HEAD must carry `X-Requested-With: spa`** (a cross-site form cannot
-set it); without it SPA answers `403 csrf`. The provider redirects under `/api/v1/auth/sso/` are exempt.
+set it); without it Keystone answers `403 csrf`. The provider redirects under `/api/v1/auth/sso/` are exempt.
 
-SPA roles: `user` < `auditor` < `admin`. In the tables below *public* needs nothing, *person* needs a session,
+Keystone roles: `user` < `auditor` < `admin`. In the tables below *public* needs nothing, *person* needs a session,
 *auditor* reads administration data, *admin* changes it.
 
 ### Sign-in
@@ -237,14 +240,14 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
  "spa_role": "user|auditor|admin", "must_change": false, "password_expires_at": "…", "password_expires_soon": false,
  "passkeys": 1, "passkeys_enabled": true, "groups": ["NOC"], "session_method": "pwd|passkey|ldap|entra|…",
  "totp": true, "totp_required": false,
- "applications": [{"id": "app_…", "name": "Inventory DB", "type": "inventory-db", "url": "https://…", "roles": ["viewer"]}]}
+ "applications": [{"id": "app_…", "name": "Ledger", "type": "ledger", "url": "https://…", "roles": ["viewer"]}]}
 // Passkey
 {"id": "pk_…", "name": "Work laptop", "kind": "device|phone|security_key", "transports": ["internal"],
  "backup_eligible": true, "backup_state": true, "created_at": "…", "last_used_at": "…"}
 // TotpState — available: the account signs in with a password; required: by the password policy
 {"enabled": true, "enabled_at": "…", "recovery_codes_left": 9, "available": true, "required": false}
 // TotpSetup — the key to type, the otpauth:// address and its QR code (PNG)
-{"secret": "JBSWY3DPEHPK3PXP…", "uri": "otpauth://totp/SPA:jdoe?algorithm=SHA1&digits=6&issuer=SPA&period=30&secret=…",
+{"secret": "JBSWY3DPEHPK3PXP…", "uri": "otpauth://totp/Keystone:jdoe?algorithm=SHA1&digits=6&issuer=Keystone&period=30&secret=…",
  "qr": "data:image/png;base64,…"}
 // Session (id: the first 16 characters of the session hash)
 {"id": "…", "method": "pwd", "mfa": false, "ip": "10.0.0.5", "user_agent": "…", "created_at": "…",
@@ -292,7 +295,8 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 // GroupInput — source + external_id create a directory group ahead of its members' first sign-in:
 // ldap + the group's DN, or entra + the group's object ID
 {"name": "Network Admins", "description": "", "members": ["usr_…"], "source": "ldap", "external_id": "CN=Network Admins,OU=Groups,DC=example,DC=com"}
-// AppInput — type: umbrella-monitoring | umbrella-flow | inventory-db | network-control | oidc.
+// AppInput — type: beacon | current | ledger | network-control | oidc (the IDs from before the rename,
+// umbrella-monitoring | umbrella-flow | inventory-db, are accepted and stored as the new ones).
 // For the Umbrella types the redirect address is <base_url>/api/auth/spa/callback; for oidc give redirect_uris.
 // roles: the catalogue until the application publishes its own (PUT /api/spa/v1/roles).
 {"type": "network-control", "name": "Network Control", "base_url": "https://netctl.example.com",
@@ -335,13 +339,13 @@ Secrets (`bind_password`, `client_secret`, `private_key`) are write-only: an emp
  "block_common": true, "lockout_attempts": 5, "lockout_minutes": 15, "second_factor": "admins"}
 // LDAPConfig (kind: ad | openldap; {username} in user_filter is what the person types)
 {"enabled": true, "kind": "ad", "url": "ldaps://dc.example.com", "start_tls": false, "skip_verify": false,
- "ca_cert": "", "bind_dn": "CN=svc-spa,…", "base_dn": "DC=example,DC=com",
+ "ca_cert": "", "bind_dn": "CN=svc-keystone,…", "base_dn": "DC=example,DC=com",
  "user_filter": "(&(objectCategory=person)(objectClass=user)(sAMAccountName={username}))",
  "username_attr": "sAMAccountName", "name_attr": "displayName", "email_attr": "mail", "first_name_attr": "givenName",
  "last_name_attr": "sn", "middle_name_attr": "middleName", "title_attr": "title", "department_attr": "department",
  "manager_attr": "manager", "photo_attr": "thumbnailPhoto", "admin_group_dn": ""}
-// EntraConfig (cloud: global | usgov | china; redirect_url is set by SPA)
-{"enabled": true, "cloud": "global", "tenant_id": "…", "client_id": "…", "redirect_url": "https://spa…/api/v1/auth/sso/entra/callback",
+// EntraConfig (cloud: global | usgov | china; redirect_url is set by Keystone)
+{"enabled": true, "cloud": "global", "tenant_id": "…", "client_id": "…", "redirect_url": "https://keystone…/api/v1/auth/sso/entra/callback",
  "admin_group_id": "", "user_group_id": ""}
 // Provider (issuer: fixed for Google and Apple; team_id/key_id for Apple; scopes and groups_claim for oidc)
 {"enabled": true, "title": "Keycloak", "issuer": "https://id.example.com/realms/main", "client_id": "…", "team_id": "",

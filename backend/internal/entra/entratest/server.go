@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/entra"
+	"github.com/sbrw-evc/keystone/internal/entra"
 )
 
 const (

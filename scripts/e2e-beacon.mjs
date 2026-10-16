@@ -1,27 +1,28 @@
 #!/usr/bin/env node
-// End-to-end check of a live SPA with a real application, Umbrella Monitoring (docs/e2e.md):
+// End-to-end check of a live Keystone with a real application, Beacon (docs/e2e.md):
 //
-//   1. builds SPA and starts it on a free port with a fresh database;
-//   2. takes a snapshot of the Umbrella Monitoring repository (git archive, nothing there is changed), builds its web
-//      UI and its server as a test binary (scripts/e2e/monitoring_serve_test.go: the app as cmd/umbrella runs it after
-//      the setup wizard, with PostgreSQL and the fake OpenBao of Monitoring's own tests);
-//   3. drives the real flow in Chromium (Playwright): the administrator connects Umbrella Monitoring in SPA's wizard
-//      and gives alice its admin role and bob its user role; the password policy requires a second factor; Monitoring
-//      starts with the connection key and publishes its role catalogue; alice and bob open Monitoring, are sent to SPA,
-//      change their first password, set up the authenticator app and come back signed in; Monitoring has both people
-//      with their roles; SPA disables bob; after "Synchronize now" in Monitoring bob is locked there, his session is
-//      gone and SPA refuses his next sign-in.
+//   1. builds Keystone and starts it on a free port with a fresh database;
+//   2. takes a snapshot of the Beacon repository (git archive, nothing there is changed), builds its web
+//      UI and its server as a test binary (scripts/e2e/beacon_serve_test.go: the app as cmd/beacon runs it after
+//      the setup wizard, with PostgreSQL and the fake OpenBao of Beacon's own tests);
+//   3. drives the real flow in Chromium (Playwright): the administrator connects Beacon in Keystone's wizard
+//      and gives alice its admin role and bob its user role; the password policy requires a second factor; Beacon
+//      starts with the connection key and publishes its role catalogue; alice and bob open Beacon, are sent to Keystone,
+//      change their first password, set up the authenticator app and come back signed in; Beacon has both people
+//      with their roles; Keystone disables bob; after "Synchronize now" in Beacon bob is locked there, his session is
+//      gone and Keystone refuses his next sign-in.
 //
-//   make e2e-monitoring        (or: node scripts/e2e-monitoring.mjs)
+//   make e2e-beacon            (or: node scripts/e2e-beacon.mjs)
 //
 // Environment (all optional):
 //   E2E_POSTGRES              PostgreSQL server URL (default postgres://postgres:postgres@127.0.0.1:55432); the
 //                             databases spa_e2e and um_e2e are dropped and created again
-//   UMBRELLA_MONITORING_DIR   the Umbrella Monitoring repository (default ../Umbrella-Monitoring next to SPA)
-//   UMBRELLA_MONITORING_REF   the commit to check (default HEAD)
-//   UM_WEB_DIST               a built web UI of Monitoring to use instead of building the snapshot's
+//   BEACON_DIR                the Beacon repository (default ../beacon next to Keystone, else ../Umbrella-Monitoring,
+//                             its name before the rename; UMBRELLA_MONITORING_DIR is still read)
+//   BEACON_REF                the commit to check (default HEAD; UMBRELLA_MONITORING_REF is still read)
+//   UM_WEB_DIST               a built web UI of Beacon to use instead of building the snapshot's
 //   E2E_WORK                  working directory (default a new one under the system temp directory)
-//   E2E_KEEP=1                keep SPA and Monitoring running at the end (Ctrl+C stops them)
+//   E2E_KEEP=1                keep Keystone and Beacon running at the end (Ctrl+C stops them)
 //   CHROMIUM                  the browser binary (default the newest chromium-* under PLAYWRIGHT_BROWSERS_PATH)
 //
 // Needs Go, Node with Playwright (project or global), psql and git.
@@ -35,9 +36,10 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PG = (process.env.E2E_POSTGRES ?? 'postgres://postgres:postgres@127.0.0.1:55432').replace(/\/+$/, '');
-const UM_REPO = resolve(process.env.UMBRELLA_MONITORING_DIR ?? join(ROOT, '..', 'Umbrella-Monitoring'));
-const UM_REF = process.env.UMBRELLA_MONITORING_REF ?? 'HEAD';
-const WORK = process.env.E2E_WORK ? resolve(process.env.E2E_WORK) : mkdtempSync(join(tmpdir(), 'spa-e2e-'));
+const UM_REPO = resolve(process.env.BEACON_DIR ?? process.env.UMBRELLA_MONITORING_DIR
+  ?? (existsSync(join(ROOT, '..', 'beacon')) ? join(ROOT, '..', 'beacon') : join(ROOT, '..', 'Umbrella-Monitoring')));
+const UM_REF = process.env.BEACON_REF ?? process.env.UMBRELLA_MONITORING_REF ?? 'HEAD';
+const WORK = process.env.E2E_WORK ? resolve(process.env.E2E_WORK) : mkdtempSync(join(tmpdir(), 'keystone-e2e-'));
 mkdirSync(WORK, { recursive: true });
 
 const ADMIN_INITIAL = 'Initial-Passw0rd!';
@@ -187,27 +189,27 @@ async function api(page, method, url, body, headers = {}) {
 
 let spaURL, umURL;
 async function main() {
-  console.log(`SPA ${ROOT}\nUmbrella Monitoring ${UM_REPO} @ ${UM_REF}\nwork ${WORK}`);
+  console.log(`Keystone ${ROOT}\nBeacon ${UM_REPO} @ ${UM_REF}\nwork ${WORK}`);
 
-  step('Build SPA');
+  step('Build Keystone');
   if (!existsSync(join(ROOT, 'web', 'dist', 'index.html'))) {
     if (!existsSync(join(ROOT, 'web', 'node_modules'))) run('npm', ['ci', '--no-audit', '--no-fund'], { cwd: join(ROOT, 'web') });
     run('npm', ['run', 'build'], { cwd: join(ROOT, 'web') });
   }
-  run('go', ['build', '-o', join(WORK, 'spa'), './cmd/spa'], { cwd: join(ROOT, 'backend') });
+  run('go', ['build', '-o', join(WORK, 'keystone'), './cmd/keystone'], { cwd: join(ROOT, 'backend') });
 
-  step('Snapshot and build Umbrella Monitoring');
+  step('Snapshot and build Beacon');
   const umCommit = execFileSync('git', ['-C', UM_REPO, 'rev-parse', UM_REF]).toString().trim();
   const umBranch = execFileSync('git', ['-C', UM_REPO, 'rev-parse', '--abbrev-ref', 'HEAD']).toString().trim();
   console.log(`  commit ${umCommit} (${umBranch})`);
-  const snap = join(WORK, 'umbrella-monitoring');
+  const snap = join(WORK, 'beacon');
   rmSync(snap, { recursive: true, force: true });
   mkdirSync(snap, { recursive: true });
   execSync(`git -C '${UM_REPO}' archive '${umCommit}' app | tar -x -C '${snap}'`);
-  const runnerDir = join(snap, 'app', 'backend', 'cmd', 'spa-e2e');
+  const runnerDir = join(snap, 'app', 'backend', 'cmd', 'keystone-e2e');
   mkdirSync(runnerDir, { recursive: true });
-  cpSync(join(ROOT, 'scripts', 'e2e', 'monitoring_serve_test.go'), join(runnerDir, 'serve_test.go'));
-  run('go', ['test', '-c', '-tags', 'spae2e', '-o', join(WORK, 'umbrella-e2e.test'), './cmd/spa-e2e'], { cwd: join(snap, 'app', 'backend') });
+  cpSync(join(ROOT, 'scripts', 'e2e', 'beacon_serve_test.go'), join(runnerDir, 'serve_test.go'));
+  run('go', ['test', '-c', '-tags', 'keystonee2e', '-o', join(WORK, 'beacon-e2e.test'), './cmd/keystone-e2e'], { cwd: join(snap, 'app', 'backend') });
   let umWeb = process.env.UM_WEB_DIST ? resolve(process.env.UM_WEB_DIST) : '';
   if (!umWeb) {
     run('npm', ['ci', '--no-audit', '--no-fund', '--loglevel=error'], { cwd: join(snap, 'app', 'web') });
@@ -221,14 +223,14 @@ async function main() {
     psql('postgres', `CREATE DATABASE ${db}`);
   }
 
-  // Two different hosts, as two real deployments: SPA on localhost, Monitoring on 127.0.0.1.
+  // Two different hosts, as two real deployments: Keystone on localhost, Beacon on 127.0.0.1.
   const spaPort = await freePort();
   const umPort = await freePort();
   spaURL = `http://localhost:${spaPort}`;
   umURL = `http://127.0.0.1:${umPort}`;
 
-  step(`Start SPA on ${spaURL}`);
-  const spa = start('SPA', join(WORK, 'spa'), [], {
+  step(`Start Keystone on ${spaURL}`);
+  const spa = start('Keystone', join(WORK, 'keystone'), [], {
     SPA_DATABASE_URL: `${PG}/spa_e2e?sslmode=disable`,
     SPA_MASTER_KEY: Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('base64'),
     SPA_ADMIN_PASSWORD: ADMIN_INITIAL,
@@ -236,8 +238,8 @@ async function main() {
     SPA_PUBLIC_URL: spaURL,
     SPA_WEB_DIR: join(ROOT, 'web', 'dist'),
   });
-  await until('SPA /healthz', async () => (await fetch(`${spaURL}/healthz`)).ok);
-  check(true, 'SPA answers /healthz');
+  await until('Keystone /healthz', async () => (await fetch(`${spaURL}/healthz`)).ok);
+  check(true, 'Keystone answers /healthz');
 
   const { chromium } = await loadPlaywright();
   const browser = await chromium.launch({ executablePath: chromiumPath() });
@@ -253,7 +255,7 @@ async function main() {
   mkdirSync(shots, { recursive: true });
 
   try {
-    step('SPA administrator: first sign-in, people, password policy');
+    step('Keystone administrator: first sign-in, people, password policy');
     const adminCtx = await context();
     const admin = await adminCtx.newPage();
     await admin.goto(`${spaURL}/signin`);
@@ -267,13 +269,13 @@ async function main() {
     await pw.nth(2).fill(ADMIN_PASSWORD);
     await admin.getByRole('button', { name: 'Change password and sign in' }).click();
     await admin.waitForURL(`${spaURL}/`);
-    check(true, 'the administrator changed the initial password and is signed in to SPA');
+    check(true, 'the administrator changed the initial password and is signed in to Keystone');
 
     const spaApi = (method, path, body) => api(admin, method, spaURL + path, body, { 'X-Requested-With': 'spa' });
     const ids = {};
     for (const [username, p] of Object.entries(PEOPLE)) {
       const r = await spaApi('POST', '/api/v1/users', { username, name: p.name, email: p.email, password: p.initial, spa_role: 'user' });
-      check(r.status === 201, `SPA created ${username}`, `HTTP ${r.status}`);
+      check(r.status === 201, `Keystone created ${username}`, `HTTP ${r.status}`);
       ids[username] = r.data.id;
     }
 
@@ -284,10 +286,10 @@ async function main() {
     const pol = await spaApi('GET', '/api/v1/settings/password-policy');
     check(pol.data?.policy?.second_factor === 'everyone', 'the password policy requires a second factor of everyone');
 
-    step('SPA administrator: connect Umbrella Monitoring (wizard), alice → admin, bob → user');
+    step('Keystone administrator: connect Beacon (wizard), alice → admin, bob → user');
     await admin.goto(`${spaURL}/applications?connect=1`);
-    await admin.locator('.type-option', { hasText: 'Umbrella Monitoring' }).click();
-    await admin.getByLabel('Name', { exact: true }).fill('Umbrella Monitoring');
+    await admin.locator('.type-option', { hasText: 'Beacon' }).click();
+    await admin.getByLabel('Name', { exact: true }).fill('Beacon');
     await admin.getByLabel('Address', { exact: true }).fill(umURL);
     await admin.getByRole('button', { name: 'Next', exact: true }).click();
     for (const [i, [username, p]] of Object.entries(PEOPLE).entries()) {
@@ -297,51 +299,51 @@ async function main() {
       await row.locator('select').nth(1).selectOption(ids[username]);
       await row.locator('select').nth(2).selectOption(p.role);
     }
-    await admin.screenshot({ path: join(shots, '1-spa-wizard-access.png') });
+    await admin.screenshot({ path: join(shots, '1-keystone-wizard-access.png') });
     await admin.getByRole('button', { name: 'Connect', exact: true }).click();
     const keyBox = admin.locator('.key-box');
     await keyBox.waitFor();
     const key = (await keyBox.textContent()).trim();
-    check(key.startsWith('spa1.'), 'SPA showed the connection key once', `${key.slice(0, 12)}…`);
-    await admin.screenshot({ path: join(shots, '2-spa-wizard-key.png') });
+    check(key.startsWith('spa1.'), 'Keystone showed the connection key once', `${key.slice(0, 12)}…`);
+    await admin.screenshot({ path: join(shots, '2-keystone-wizard-key.png') });
     await admin.getByRole('button', { name: 'Done', exact: true }).click();
     let apps = (await spaApi('GET', '/api/v1/applications')).data.applications;
     const appId = apps[0].id;
-    check(apps.length === 1 && apps[0].type === 'umbrella-monitoring' && apps[0].callback === `${umURL}/api/auth/spa/callback`, 'the application is registered with its redirect address', apps[0].callback);
-    check(!apps[0].roles_published, 'before Monitoring starts, SPA has only the preset catalogue', apps[0].roles.map((r) => r.id).join(', '));
+    check(apps.length === 1 && apps[0].type === 'beacon' && apps[0].callback === `${umURL}/api/auth/spa/callback`, 'the application is registered with its redirect address', apps[0].callback);
+    check(!apps[0].roles_published, 'before Beacon starts, Keystone has only the preset catalogue', apps[0].roles.map((r) => r.id).join(', '));
 
-    step(`Start Umbrella Monitoring on ${umURL} with SPA_CONNECTION_KEY`);
+    step(`Start Beacon on ${umURL} with SPA_CONNECTION_KEY`);
     const pg = pgParts();
-    const um = start('Umbrella Monitoring', join(WORK, 'umbrella-e2e.test'), ['-test.run', 'TestServe', '-test.timeout', '0'], {
+    const um = start('Beacon', join(WORK, 'beacon-e2e.test'), ['-test.run', 'TestServe', '-test.timeout', '0'], {
       UM_ADDR: `127.0.0.1:${umPort}`,
       UM_POSTGRES: `${pg.host}:${pg.port}:${pg.user}:${pg.password}:um_e2e`,
       UM_WEB_DIR: umWeb,
       SPA_CONNECTION_KEY: key,
       SPA_PUBLIC_URL: umURL,
-    }, 'UMBRELLA READY');
-    await Promise.race([um.ready, sleep(60000).then(() => Promise.reject(new Error('Monitoring did not start:\n' + um.logText())))]);
+    }, 'BEACON READY');
+    await Promise.race([um.ready, sleep(60000).then(() => Promise.reject(new Error('Beacon did not start:\n' + um.logText())))]);
     const meta = await (await fetch(`${umURL}/api/auth/spa`)).json();
-    check(meta.connected && meta.issuer === spaURL, 'Monitoring is connected to SPA', `issuer ${meta.issuer}`);
+    check(meta.connected && meta.issuer === spaURL, 'Beacon is connected to Keystone', `issuer ${meta.issuer}`);
 
-    step('Monitoring publishes its role catalogue and synchronizes');
-    const published = await until('the role catalogue in SPA', async () => {
+    step('Beacon publishes its role catalogue and synchronizes');
+    const published = await until('the role catalogue in Keystone', async () => {
       const a = (await spaApi('GET', '/api/v1/applications')).data.applications.find((x) => x.id === appId);
       return a.roles_published && a.last_sync_at ? a : null;
     });
     const roleIds = published.roles.map((r) => r.id);
-    check(roleIds.includes('admin') && roleIds.includes('user'), 'SPA received the role catalogue of Monitoring', roleIds.join(', '));
-    check(roleIds.length > 2, 'the catalogue holds the custom (preset) roles of Monitoring too', `${roleIds.length} roles`);
-    check(!!published.last_sync_at, 'Monitoring read its people from the federation API', `last sync ${published.last_sync_at}`);
+    check(roleIds.includes('admin') && roleIds.includes('user'), 'Keystone received the role catalogue of Beacon', roleIds.join(', '));
+    check(roleIds.length > 2, 'the catalogue holds the custom (preset) roles of Beacon too', `${roleIds.length} roles`);
+    check(!!published.last_sync_at, 'Beacon read its people from the federation API', `last sync ${published.last_sync_at}`);
 
-    step('alice and bob sign in to Monitoring through SPA (first password change, authenticator app set-up)');
+    step('alice and bob sign in to Beacon through Keystone (first password change, authenticator app set-up)');
     const signedIn = {};
     for (const [username, p] of Object.entries(PEOPLE)) {
       const ctx = await context();
       const page = await ctx.newPage();
       await page.goto(`${umURL}/`);
       await page.waitForURL((u) => u.href.startsWith(`${spaURL}/signin`), { timeout: 20000 });
-      check(new URL(page.url()).searchParams.get('request') !== null, `${username}: Monitoring sent the browser to SPA's sign-in with the request`);
-      await page.getByText('Umbrella Monitoring asks you to sign in').waitFor();
+      check(new URL(page.url()).searchParams.get('request') !== null, `${username}: Beacon sent the browser to Keystone's sign-in with the request`);
+      await page.getByText('Beacon asks you to sign in').waitFor();
       await page.getByLabel('User name').fill(username);
       await page.locator('input[type=password]').fill(p.initial);
       await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -353,7 +355,7 @@ async function main() {
       await page.getByRole('button', { name: 'Change password and sign in' }).click();
       await page.getByText('Set up two-step verification').first().waitFor();
       const secret = (await page.locator('.totp-key').textContent()).replace(/\s/g, '');
-      if (username === 'alice') await page.screenshot({ path: join(shots, '3-spa-totp-setup.png') });
+      if (username === 'alice') await page.screenshot({ path: join(shots, '3-keystone-totp-setup.png') });
       await page.getByLabel('Code from the app').fill(totp(secret));
       await page.getByRole('button', { name: 'Turn on and sign in' }).click();
       await page.locator('.recovery-codes').waitFor();
@@ -361,48 +363,48 @@ async function main() {
       check(codes === 10, `${username}: set up the authenticator app during the sign-in, 10 recovery codes shown`);
       await page.getByRole('button', { name: 'I have saved the codes, continue' }).click();
       await page.waitForURL((u) => u.href.startsWith(umURL), { timeout: 20000 });
-      const me = await until(`${username} in Monitoring`, async () => {
+      const me = await until(`${username} in Beacon`, async () => {
         const r = await api(page, 'GET', `${umURL}/api/auth/me`);
         return r.status === 200 ? r.data : null;
       });
-      check(me.username === username && me.role === p.role && me.source === 'spa', `${username} is signed in to Monitoring with the role ${p.role}`, `role ${me.role}, source ${me.source}`);
+      check(me.username === username && me.role === p.role && me.source === 'spa', `${username} is signed in to Beacon with the role ${p.role}`, `role ${me.role}, source ${me.source}`);
       await page.waitForLoadState('load');
-      await sleep(1500); // Monitoring keeps a live feed open, so the network is never idle
-      await page.screenshot({ path: join(shots, `4-monitoring-${username}.png`) });
+      await sleep(1500); // Beacon keeps a live feed open, so the network is never idle
+      await page.screenshot({ path: join(shots, `4-beacon-${username}.png`) });
       signedIn[username] = { ctx, page, me };
     }
     const alice = signedIn.alice.page;
     const bob = signedIn.bob.page;
     const umApi = (page, method, path, body, csrf) => api(page, method, umURL + path, body, csrf ? { 'X-CSRF-Token': csrf } : {});
 
-    step('Monitoring has the people of SPA');
+    step('Beacon has the people of Keystone');
     let users = (await umApi(alice, 'GET', '/api/users')).data;
     const byName = (n) => users.find((u) => u.username === n);
-    check(byName('alice')?.role === 'admin' && byName('bob')?.role === 'user', 'Monitoring lists alice (admin) and bob (user)', users.map((u) => `${u.username}:${u.role}${u.disabled ? ':disabled' : ''}`).join(', '));
-    check(byName('alice')?.source === 'spa' && byName('bob')?.source === 'spa', 'both records are bound to SPA');
+    check(byName('alice')?.role === 'admin' && byName('bob')?.role === 'user', 'Beacon lists alice (admin) and bob (user)', users.map((u) => `${u.username}:${u.role}${u.disabled ? ':disabled' : ''}`).join(', '));
+    check(byName('alice')?.source === 'spa' && byName('bob')?.source === 'spa', 'both records are bound to Keystone');
     const fedUsers = (await spaApi('GET', '/api/v1/applications')).data.applications.find((x) => x.id === appId).users;
-    check(fedUsers === 2, 'SPA counts two people with access to Monitoring', `users ${fedUsers}`);
+    check(fedUsers === 2, 'Keystone counts two people with access to Beacon', `users ${fedUsers}`);
 
-    step('SPA disables bob; Monitoring locks him after "Synchronize now"');
+    step('Keystone disables bob; Beacon locks him after "Synchronize now"');
     const bobUser = (await spaApi('GET', '/api/v1/users')).data.find((u) => u.username === 'bob');
     const upd = await spaApi('PUT', `/api/v1/users/${bobUser.id}`, { username: 'bob', name: bobUser.name, email: bobUser.email, spa_role: bobUser.spa_role, disabled: true, groups: bobUser.groups });
-    check(upd.status === 200 && upd.data.disabled, 'SPA disabled bob', `HTTP ${upd.status}`);
-    check((await umApi(bob, 'GET', '/api/auth/me')).status === 200, 'before the synchronization bob still has his Monitoring session');
+    check(upd.status === 200 && upd.data.disabled, 'Keystone disabled bob', `HTTP ${upd.status}`);
+    check((await umApi(bob, 'GET', '/api/auth/me')).status === 200, 'before the synchronization bob still has his Beacon session');
 
-    await alice.goto(`${umURL}/settings/spa`);
+    await alice.goto(`${umURL}/settings/keystone`);
     const syncBtn = alice.getByRole('button', { name: 'Synchronize now' });
     await syncBtn.waitFor();
     const syncDone = alice.waitForResponse((r) => r.url().endsWith('/api/settings/spa/sync') && r.request().method() === 'POST');
     await syncBtn.click();
     const syncRes = await syncDone;
-    check(syncRes.status() === 200, 'alice ran "Synchronize now" in Monitoring', `HTTP ${syncRes.status()}`);
+    check(syncRes.status() === 200, 'alice ran "Synchronize now" in Beacon', `HTTP ${syncRes.status()}`);
     await sleep(1500);
-    await alice.screenshot({ path: join(shots, '5-monitoring-spa-settings.png'), fullPage: true });
+    await alice.screenshot({ path: join(shots, '5-beacon-keystone-settings.png'), fullPage: true });
     users = (await umApi(alice, 'GET', '/api/users')).data;
-    check(byName('bob')?.disabled === true, 'Monitoring disabled bob', JSON.stringify({ disabled: byName('bob')?.disabled }));
+    check(byName('bob')?.disabled === true, 'Beacon disabled bob', JSON.stringify({ disabled: byName('bob')?.disabled }));
     check(byName('alice')?.disabled === false, 'alice stays enabled');
     const bobMe = await umApi(bob, 'GET', '/api/auth/me');
-    check(bobMe.status === 401, "bob's Monitoring session ended", `HTTP ${bobMe.status}`);
+    check(bobMe.status === 401, "bob's Beacon session ended", `HTTP ${bobMe.status}`);
 
     step('bob cannot sign in again');
     await bob.goto(`${umURL}/`);
@@ -411,12 +413,12 @@ async function main() {
     await bob.locator('input[type=password]').fill(PEOPLE.bob.password);
     await bob.getByRole('button', { name: 'Sign in', exact: true }).click();
     await bob.getByText('This account is disabled').waitFor();
-    check(true, 'SPA refuses bob: "This account is disabled"');
+    check(true, 'Keystone refuses bob: "This account is disabled"');
 
-    step('Audit log of SPA');
+    step('Audit log of Keystone');
     const audit = (await spaApi('GET', '/api/v1/audit?q=')).data.map((e) => e.action);
     for (const a of ['application.connected', 'application.roles_published', 'totp.enabled', 'oauth.token', 'user.updated']) {
-      check(audit.includes(a), `SPA audit has ${a}`);
+      check(audit.includes(a), `Keystone audit has ${a}`);
     }
     await alice.screenshot({ path: join(shots, '6-done.png') });
   } catch (e) {
@@ -439,9 +441,9 @@ try {
 }
 const passed = results.filter((r) => r.ok).length;
 console.log(`\n${failed ? 'FAILED' : 'PASSED'}: ${passed} checks passed${failed ? ', 1 failed' : ''}. Screenshots: ${join(WORK, 'screens')}`);
-writeFileSync(join(WORK, 'result.json'), JSON.stringify({ passed: !failed, checks: results, spa: spaURL, monitoring: umURL }, null, 2));
+writeFileSync(join(WORK, 'result.json'), JSON.stringify({ passed: !failed, checks: results, keystone: spaURL, beacon: umURL }, null, 2));
 if (process.env.E2E_KEEP === '1' && !failed) {
-  console.log(`SPA ${spaURL} and Monitoring ${umURL} keep running; Ctrl+C stops them.`);
+  console.log(`Keystone ${spaURL} and Beacon ${umURL} keep running; Ctrl+C stops them.`);
 } else {
   stopAll();
   if (!failed && process.env.E2E_KEEP !== '1') {

@@ -97,13 +97,13 @@ function ProviderCard({ entry, admin, onSaved }: { entry: ProviderEntry; admin: 
               <Field label={t('Extra scopes')}>
                 <input className="input mono" value={c.scopes} disabled={ro} onChange={(e) => set({ scopes: e.target.value })} placeholder="groups" />
               </Field>
-              <Field label={t('Groups claim')} hint={t('SPA takes the groups of the person from this claim (optional)')}>
+              <Field label={t('Groups claim')} hint={t('Keystone takes the groups of the person from this claim (optional)')}>
                 <input className="input mono" value={c.groups_claim} disabled={ro} onChange={(e) => set({ groups_claim: e.target.value })} placeholder="groups" />
               </Field>
             </>
           )}
         </div>
-        <Switch checked={c.existing_only} disabled={ro} onChange={(v) => set({ existing_only: v })} label={t('Only existing accounts')} hint={t('Only people who already have an SPA account with the same verified e-mail may sign in')} />
+        <Switch checked={c.existing_only} disabled={ro} onChange={(v) => set({ existing_only: v })} label={t('Only existing accounts')} hint={t('Only people who already have a Keystone account with the same verified e-mail may sign in')} />
         <Field label={t('Redirect URI to register at the provider')}>
           <code style={{ padding: '8px 10px' }}>{entry.redirect_uri}</code>
         </Field>

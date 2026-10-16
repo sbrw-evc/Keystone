@@ -1,4 +1,4 @@
--- SPA — Single Point of Authorization: people, groups, sign-in, applications and their roles.
+-- Keystone (formerly SPA): people, groups, sign-in, applications and their roles.
 
 CREATE TABLE users (
     id                  text PRIMARY KEY,
@@ -12,7 +12,7 @@ CREATE TABLE users (
     password_changed_at timestamptz,
     must_change         boolean NOT NULL DEFAULT false,
     disabled            boolean NOT NULL DEFAULT false,
-    -- the person's role in SPA itself: admin, auditor (read-only), user
+    -- the person's role in Keystone itself: admin, auditor (read-only), user
     spa_role            text NOT NULL DEFAULT 'user' CHECK (spa_role IN ('admin', 'auditor', 'user')),
     failed_attempts     integer NOT NULL DEFAULT 0,
     locked_until        timestamptz,

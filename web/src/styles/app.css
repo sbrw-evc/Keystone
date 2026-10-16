@@ -1,5 +1,5 @@
-/* Design tokens and controls of the Umbrella family, copied from Inventory DB (web/src/styles/app.css), which
-   copies the Umbrella monitoring app value for value. See docs/design.md of Inventory DB and README.md. */
+/* Design tokens and controls of the Umbrella family, copied from Ledger (web/src/styles/app.css), which
+   copies Beacon (formerly Umbrella Monitoring) value for value. See docs/design.md of Ledger and README.md. */
 :root {
   --bg: #f4f6f9;
   --chrome: #e9edf2;
@@ -21,7 +21,7 @@
   --error-soft: #fdecec;
   --info: #1d4ed8;
   --info-soft: #eaf1ff;
-  /* Two extra chip tones for select options (not in Umbrella, derived the same way). */
+  /* Two extra chip tones for select options (not in Beacon, derived the same way). */
   --orange: #c2410c;
   --orange-soft: #fff1e6;
   --purple: #7e22ce;
@@ -162,7 +162,7 @@
   box-sizing: border-box;
 }
 
-/* Scrollbars: thin, rounded thumb, no track (Umbrella). OverlayScrollbars themes .os-theme-app;
+/* Scrollbars: thin, rounded thumb, no track (Beacon). OverlayScrollbars themes .os-theme-app;
    the native styles cover the grid and anything it skips. */
 ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
 ::-webkit-scrollbar-track,
@@ -253,7 +253,7 @@ code {
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 
-/* ---------- Controls (Umbrella controls.css) ---------- */
+/* ---------- Controls (Beacon controls.css) ---------- */
 .btn:focus-visible,
 .input:focus-visible,
 .icon-btn:focus-visible,
@@ -388,7 +388,7 @@ textarea.input { min-height: 72px; resize: vertical; line-height: 1.45; }
 .input::-webkit-calendar-picker-indicator { padding: 3px; border-radius: 6px; opacity: 0.55; cursor: pointer; }
 :root[data-theme='dark'] .input::-webkit-calendar-picker-indicator { filter: invert(1); }
 
-/* Native drop-downs drawn like Umbrella's Select button: same field, chevron on the right. */
+/* Native drop-downs drawn like Beacon's Select button: same field, chevron on the right. */
 select.input,
 .nb select {
   appearance: none;
@@ -500,7 +500,7 @@ input[type='color'] { padding: 2px; border: 1px solid var(--input-border); borde
 .checkbox-label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin: 6px 0; }
 .form-grid { display: flex; flex-direction: column; gap: 4px; }
 
-/* Banners (Umbrella .banner): soft tone fill, tone-coloured title. */
+/* Banners (Beacon .banner): soft tone fill, tone-coloured title. */
 .notice {
   margin: 8px 0;
   padding: 12px 14px;
@@ -520,7 +520,7 @@ input[type='color'] { padding: 2px; border: 1px solid var(--input-border); borde
 .notice-success { background: var(--ok-soft); }
 .notice-success b { color: var(--ok); }
 
-/* Segmented control with a sliding pill (Umbrella). */
+/* Segmented control with a sliding pill (Beacon). */
 .segmented {
   display: inline-flex;
   align-self: flex-start;
@@ -553,7 +553,7 @@ input[type='color'] { padding: 2px; border: 1px solid var(--input-border); borde
 .seg-label { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; }
 .segmented.has-pill button.active { background: transparent; box-shadow: none; }
 
-/* Pills (Umbrella .pill) */
+/* Pills (Beacon .pill) */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -572,7 +572,7 @@ input[type='color'] { padding: 2px; border: 1px solid var(--input-border); borde
 .pill-info { background: var(--info-soft); color: var(--info); }
 .pill-accent { background: var(--accent-soft); color: var(--accent); }
 
-/* Priority / severity tones, P1–P5 as in Umbrella (critical, high, medium, low, informational). */
+/* Priority / severity tones, P1–P5 as in Beacon (critical, high, medium, low, informational). */
 .tone-p1, .tone-critical { --tone: var(--error); --tone-soft: var(--error-soft); }
 .tone-p2, .tone-error { --tone: var(--error); --tone-soft: var(--error-soft); }
 .tone-p3, .tone-warn { --tone: var(--warn); --tone-soft: var(--warn-soft); }
@@ -580,7 +580,7 @@ input[type='color'] { padding: 2px; border: 1px solid var(--input-border); borde
 .tone-p5, .tone-info { --tone: var(--info); --tone-soft: var(--info-soft); }
 .tone-ok { --tone: var(--ok); --tone-soft: var(--ok-soft); }
 
-/* ---------- Shell: top bar, sidebar, page block (Umbrella MainApp) ---------- */
+/* ---------- Shell: top bar, sidebar, page block (Beacon MainApp) ---------- */
 .boot {
   display: flex;
   flex-direction: column;
@@ -662,7 +662,7 @@ input[type='color'] { padding: 2px; border: 1px solid var(--input-border); borde
   white-space: nowrap;
 }
 
-/* User menu (Umbrella UserMenu) */
+/* User menu (Beacon UserMenu) */
 .user-menu { position: relative; }
 .user-btn {
   display: flex;
@@ -920,8 +920,8 @@ body.side-resizing .app-body { transition: none; }
 .admin-layout { flex: 1; display: flex; min-width: 0; min-height: 0; }
 .content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 
-/* ---------- Pages (Umbrella .page / PageHead) ---------- */
-/* The page scrolls inside the page block; its content is a centred 1100px column like Umbrella's. */
+/* ---------- Pages (Beacon .page / PageHead) ---------- */
+/* The page scrolls inside the page block; its content is a centred 1100px column like Beacon's. */
 .page {
   flex: 1;
   min-height: 0;
@@ -954,7 +954,7 @@ body.side-resizing .app-body { transition: none; }
 }
 .card-pad { padding: 16px; }
 
-/* Tiles (Umbrella .ci-tile) */
+/* Tiles (Beacon .ci-tile) */
 .counters,
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .counter,
@@ -1013,7 +1013,7 @@ button.tile:hover { border-color: var(--accent); }
 .quick-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 .quick-card:focus-visible { outline: none; box-shadow: var(--focus); }
 
-/* Tables (Umbrella .cn-table inside a card) */
+/* Tables (Beacon .cn-table inside a card) */
 .table-card { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); box-shadow: var(--shadow); }
 .data-table,
 .simple-table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -1062,7 +1062,7 @@ button.tile:hover { border-color: var(--accent); }
 .empty-hint { padding: 8px 10px; color: var(--muted); font-size: 12.5px; }
 .view-loading { padding: 32px; text-align: center; color: var(--muted); }
 
-/* ---------- Sign-in & public pages (Umbrella SignIn) ---------- */
+/* ---------- Sign-in & public pages (Beacon SignIn) ---------- */
 .center-page {
   min-height: 100%;
   display: flex;

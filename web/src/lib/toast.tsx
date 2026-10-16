@@ -34,7 +34,7 @@ export function dismissToast(id: number) {
 const ICONS = { info: Info, error: CircleX, success: CircleCheck };
 const TONE = { info: 'info', error: 'error', success: 'ok' };
 
-/** Notifications in the bottom right corner (Umbrella Toaster). */
+/** Notifications in the bottom right corner (Beacon Toaster). */
 export function Toasts() {
   const list = useSyncExternalStore(
     (cb) => {

@@ -1,15 +1,15 @@
-// Command spa runs SPA — the Single Point of Authorization of the Umbrella family.
+// Command keystone runs Keystone — sign-in and access for the Umbrella family.
 //
 // Environment:
 //
 //	SPA_DATABASE_URL     PostgreSQL connection string (required)
-//	SPA_PUBLIC_URL       the address of SPA and its OpenID Connect issuer, e.g. https://spa.example.com
+//	SPA_PUBLIC_URL       the address of Keystone and its OpenID Connect issuer, e.g. https://keystone.example.com
 //	SPA_LISTEN           listen address (default :8080)
 //	SPA_MASTER_KEY       base64 of 32 bytes that seals secrets in the database (or SPA_MASTER_KEY_FILE)
 //	BAO_ADDR, BAO_TOKEN  keep secrets in OpenBao instead (KV v2, mount BAO_MOUNT, default "spa")
-//	SPA_ADMIN_USERNAME   first administrator, created when SPA has no people (default "admin")
+//	SPA_ADMIN_USERNAME   first administrator, created when Keystone has no people (default "admin")
 //	SPA_ADMIN_PASSWORD   their initial password, to be changed at first sign-in
-//	SPA_SESSION_HOURS    SPA session lifetime (default 12)
+//	SPA_SESSION_HOURS    Keystone session lifetime (default 12)
 //	SPA_TRUSTED_PROXIES  comma-separated networks whose X-Forwarded-For/-Host are trusted
 //	SPA_WEB_DIR          the built web app (default ./web)
 package main
@@ -28,9 +28,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/app"
-	"github.com/sbrw-evc/spa/internal/secrets"
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/app"
+	"github.com/sbrw-evc/keystone/internal/secrets"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 func env(k, def string) string {
@@ -43,7 +43,7 @@ func env(k, def string) string {
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	if err := run(); err != nil {
-		slog.Error("spa stopped", "err", err)
+		slog.Error("keystone stopped", "err", err)
 		os.Exit(1)
 	}
 }
@@ -120,7 +120,7 @@ func run() error {
 		defer cancel()
 		srv.Shutdown(shutdown) //nolint:errcheck
 	}()
-	slog.Info("spa listening", "addr", srv.Addr, "issuer", cfg.PublicURL, "secrets", sec.Kind())
+	slog.Info("keystone listening", "addr", srv.Addr, "issuer", cfg.PublicURL, "secrets", sec.Kind())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

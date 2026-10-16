@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/passkey"
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/passkey"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 // account is the signed-in person as the web app sees them, with the applications they can open.

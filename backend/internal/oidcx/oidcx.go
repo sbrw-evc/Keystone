@@ -1,7 +1,7 @@
 // Package oidcx signs people in with external OpenID Connect providers: Google (Workspace),
 // Sign in with Apple and any standard provider (Keycloak, ADFS, Okta, Authentik…). It runs the
 // authorization code flow with PKCE, verifies ID tokens (RS256 and ES256, keys from the
-// provider's JWKS) and signs JWTs (the client secret of Apple, the ID tokens of Umbrella).
+// provider's JWKS) and signs JWTs (the client secret of Apple, the ID tokens of Keystone).
 package oidcx
 
 import (
@@ -444,7 +444,7 @@ func Sign(key crypto.Signer, kid string, claims any) (string, error) {
 }
 
 // ParseKey reads a PEM private key (PKCS#8, PKCS#1 or SEC 1): the .p8 key of Apple or the
-// signing key of Umbrella.
+// signing key of Keystone.
 func ParseKey(pemText string) (crypto.Signer, error) {
 	b, _ := pem.Decode([]byte(strings.TrimSpace(pemText)))
 	if b == nil {

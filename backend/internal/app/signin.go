@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/directory"
-	"github.com/sbrw-evc/spa/internal/entra"
-	"github.com/sbrw-evc/spa/internal/oidcx"
-	"github.com/sbrw-evc/spa/internal/passkey"
-	"github.com/sbrw-evc/spa/internal/policy"
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/directory"
+	"github.com/sbrw-evc/keystone/internal/entra"
+	"github.com/sbrw-evc/keystone/internal/oidcx"
+	"github.com/sbrw-evc/keystone/internal/passkey"
+	"github.com/sbrw-evc/keystone/internal/policy"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 var (
@@ -26,7 +26,7 @@ var (
 )
 
 // signedIn is the answer of a successful sign-in: who, and where the browser goes next (back to the application
-// that asked, or into SPA).
+// that asked, or into Keystone).
 type signedIn struct {
 	User account `json:"user"`
 	Next string  `json:"next"`
@@ -150,7 +150,7 @@ func (a *App) checkLocal(ctx context.Context, u store.User, password string) (st
 	return u, nil
 }
 
-// checkLDAP signs a person in with the directory and creates or refreshes their SPA account and directory groups.
+// checkLDAP signs a person in with the directory and creates or refreshes their Keystone account and directory groups.
 func (a *App) checkLDAP(ctx context.Context, username, password string) (store.User, error) {
 	c := a.ldap(ctx)
 	if !c.Enabled {
@@ -334,7 +334,7 @@ func (a *App) party(ctx context.Context, r *http.Request) (passkey.Party, error)
 	if origin == "" {
 		origin = a.Issuer(r)
 	}
-	p, err := passkey.NewParty(s.RPID, "SPA", origin)
+	p, err := passkey.NewParty(s.RPID, "Keystone", origin)
 	if err != nil {
 		return p, fail(http.StatusBadRequest, "passkey_origin", err.Error())
 	}
@@ -611,7 +611,7 @@ func (a *App) completeProvider(ctx context.Context, r *http.Request, kind, code 
 		return a.st.UserByID(ctx, same[0].ID)
 	}
 	if p.ExistingOnly {
-		return store.User{}, fail(http.StatusForbidden, "provider_not_allowed", email+" has no SPA account")
+		return store.User{}, fail(http.StatusForbidden, "provider_not_allowed", email+" has no Keystone account")
 	}
 	name := cl.String("name")
 	if kind == "apple" && appleUser != "" {

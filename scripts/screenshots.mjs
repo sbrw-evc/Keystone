@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Takes the README screenshots (docs/screens/*.png) of a really running SPA with Playwright (Chromium).
-// The demo data comes through SPA's API (scripts/seed-demo.mjs); start SPA on an empty database first:
+// Takes the README screenshots (docs/screens/*.png) of a really running Keystone with Playwright (Chromium).
+// The demo data comes through Keystone's API (scripts/seed-demo.mjs); start Keystone on an empty database first:
 //
 //   SPA_URL=http://localhost:8080 SPA_ADMIN_PASSWORD=<initial password> node scripts/screenshots.mjs
 //
@@ -75,10 +75,10 @@ async function shot(page, name, height) {
   console.log(`docs/screens/${name}.png`);
 }
 
-/** A pending sign-in of Umbrella Monitoring: the sign-in page SPA shows when the application sends a person. */
+/** A pending sign-in of Beacon: the sign-in page Keystone shows when the application sends a person. */
 async function authorizeURL() {
   const { applications } = await api.get('/api/v1/applications');
-  const app = applications.find((a) => a.type === 'umbrella-monitoring');
+  const app = applications.find((a) => a.type === 'beacon');
   const q = new URLSearchParams({
     client_id: app.client_id, redirect_uri: app.callback, response_type: 'code', scope: 'openid profile email groups roles',
     state: 'demo-state', nonce: 'demo-nonce', code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM', code_challenge_method: 'S256',

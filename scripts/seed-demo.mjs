@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fills a fresh SPA with demo data through its real HTTP API: the first administrator changes the initial
+// Fills a fresh Keystone with demo data through its real HTTP API: the first administrator changes the initial
 // password, then people, groups (local and directory), the four Umbrella applications with their access rules,
 // the password policy and the general settings.
 //
@@ -86,9 +86,9 @@ const GROUPS = [
 ];
 
 const APPS = [
-  { type: 'umbrella-monitoring', name: 'Umbrella Monitoring', base_url: 'https://monitoring.umbrella.example', rules: [['Platform team', 'admin'], ['NOC', 'user'], ['Security', 'user']] },
-  { type: 'umbrella-flow', name: 'Umbrella Flow', base_url: 'https://flow.umbrella.example', rules: [['Platform team', 'admin']] },
-  { type: 'inventory-db', name: 'Inventory DB', base_url: 'https://inventory.umbrella.example', rules: [['Platform team', 'admin'], ['Network engineers', 'editor'], ['NOC', 'viewer'], ['Domain Admins', 'admin']] },
+  { type: 'beacon', name: 'Beacon', base_url: 'https://beacon.umbrella.example', rules: [['Platform team', 'admin'], ['NOC', 'user'], ['Security', 'user']] },
+  { type: 'current', name: 'Current', base_url: 'https://current.umbrella.example', rules: [['Platform team', 'admin']] },
+  { type: 'ledger', name: 'Ledger', base_url: 'https://ledger.umbrella.example', rules: [['Platform team', 'admin'], ['Network engineers', 'editor'], ['NOC', 'viewer'], ['Domain Admins', 'admin']] },
   { type: 'network-control', name: 'Network Control', base_url: 'https://netctl.umbrella.example', rules: [['Network engineers', 'operator'], ['NOC', 'viewer'], ['Umbrella Operators (Entra)', 'operator']] },
 ];
 
@@ -103,15 +103,15 @@ export async function seed(c = new Client()) {
 
   // Directories and providers (the demo servers do not exist: sign-in through them fails, the pages show them)
   await c.put('/api/v1/settings/ldap', {
-    config: { enabled: true, kind: 'ad', url: 'ldaps://dc1.umbrella.example:636', bind_dn: 'CN=svc-spa,OU=Service Accounts,DC=umbrella,DC=example',
-      base_dn: 'DC=umbrella,DC=example', admin_group_dn: 'CN=SPA Admins,OU=Groups,DC=umbrella,DC=example' },
+    config: { enabled: true, kind: 'ad', url: 'ldaps://dc1.umbrella.example:636', bind_dn: 'CN=svc-keystone,OU=Service Accounts,DC=umbrella,DC=example',
+      base_dn: 'DC=umbrella,DC=example', admin_group_dn: 'CN=Keystone Admins,OU=Groups,DC=umbrella,DC=example' },
     bind_password: 'demo-bind-password',
   });
   await c.put('/api/v1/settings/entra', {
     config: { enabled: true, cloud: 'global', tenant_id: 'umbrella.onmicrosoft.com', client_id: '3f2b6c1e-8d4a-4b7e-9c2f-1a5d7e9b0c3d', user_group_id: '6f1c2a9e-3b7d-4e21-9a0c-5d8e7f6a1b2c' },
     client_secret: 'demo-client-secret',
   });
-  // Google needs its discovery document: skipped when SPA cannot reach accounts.google.com.
+  // Google needs its discovery document: skipped when Keystone cannot reach accounts.google.com.
   await c.put('/api/v1/settings/providers/google', {
     config: { enabled: true, client_id: '123456789012-demo.apps.googleusercontent.com', allowed_domains: ['umbrella.example'], existing_only: true },
     client_secret: 'demo-google-secret',
@@ -142,9 +142,9 @@ export async function seed(c = new Client()) {
     });
     keys[a.name] = conn.key;
   }
-  // Umbrella Monitoring connects: it publishes its role catalogue and reads its people (the federation API).
-  if (keys['Umbrella Monitoring']) {
-    const { token } = JSON.parse(Buffer.from(keys['Umbrella Monitoring'].slice(5), 'base64url').toString());
+  // Beacon connects: it publishes its role catalogue and reads its people (the federation API).
+  if (keys['Beacon']) {
+    const { token } = JSON.parse(Buffer.from(keys['Beacon'].slice(5), 'base64url').toString());
     const fed = (method, path, body) =>
       fetch(c.base + path, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json());
     await fed('PUT', '/api/spa/v1/roles', {
@@ -165,7 +165,7 @@ export async function seed(c = new Client()) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   seed()
     .then(({ keys }) => {
-      console.log(`SPA at ${BASE} is ready. Sign in as ${ADMIN} / ${DEMO_PASSWORD}`);
+      console.log(`Keystone at ${BASE} is ready. Sign in as ${ADMIN} / ${DEMO_PASSWORD}`);
       for (const [name, key] of Object.entries(keys)) console.log(`${name}: SPA_CONNECTION_KEY=${key}`);
     })
     .catch((e) => {

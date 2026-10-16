@@ -16,7 +16,7 @@ func NewID(prefix string) string {
 	return prefix + "_" + hex.EncodeToString(b)
 }
 
-// User is a person of SPA.
+// User is a person of Keystone.
 type User struct {
 	ID                string     `json:"id"`
 	Username          string     `json:"username"`

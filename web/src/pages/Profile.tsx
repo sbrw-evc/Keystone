@@ -108,7 +108,7 @@ function TwoStep({ username }: { username: string }) {
             <ShieldCheck size={18} />
             {t('Two-step verification')}
           </h2>
-          <p className="muted">{t('After the password SPA asks for a code from an authenticator app on your phone. A passkey sign-in needs no code.')}</p>
+          <p className="muted">{t('After the password Keystone asks for a code from an authenticator app on your phone. A passkey sign-in needs no code.')}</p>
         </div>
         {data && !data.enabled && (
           <button type="button" className="btn btn-primary" onClick={() => setSetup({ code: '' })}>
@@ -444,7 +444,7 @@ function Sessions() {
             <Monitor size={18} />
             {t('Sessions')}
           </h2>
-          <p className="muted">{t('Where you are signed in to SPA. Ending a session signs that browser out.')}</p>
+          <p className="muted">{t('Where you are signed in to Keystone. Ending a session signs that browser out.')}</p>
         </div>
         {others.length > 0 && (
           <button

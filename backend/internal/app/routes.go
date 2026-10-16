@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/policy"
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/policy"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 // CSRFHeader must accompany every state-changing request of the web app (a cross-site form cannot set it).
 const CSRFHeader = "X-Requested-With"
 
-// Handler is SPA's HTTP interface: the web app, its API, the OpenID Connect provider and the federation API.
+// Handler is Keystone's HTTP interface: the web app, its API, the OpenID Connect provider and the federation API.
 func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -154,7 +154,7 @@ func (a *App) authed(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// role allows people whose SPA role is at least min (user < auditor < admin).
+// role allows people whose Keystone role is at least min (user < auditor < admin).
 func (a *App) role(min string) func(http.HandlerFunc) http.HandlerFunc {
 	rank := map[string]int{"user": 0, "auditor": 1, "admin": 2}
 	return func(next http.HandlerFunc) http.HandlerFunc {
@@ -168,7 +168,7 @@ func (a *App) role(min string) func(http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// continueAuthorize finishes a pending application sign-in for someone who already has an SPA session.
+// continueAuthorize finishes a pending application sign-in for someone who already has a Keystone session.
 func (a *App) continueAuthorize(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Request string `json:"request"`
@@ -255,14 +255,14 @@ func (a *App) onboarding(w http.ResponseWriter, r *http.Request) {
 
 // ---- start-up
 
-// Bootstrap creates the first administrator when SPA has no people yet (the password must be changed at first sign-in).
+// Bootstrap creates the first administrator when Keystone has no people yet (the password must be changed at first sign-in).
 func (a *App) Bootstrap(ctx context.Context, username, password string) error {
 	n, err := a.st.CountUsers(ctx)
 	if err != nil || n > 0 || username == "" {
 		return err
 	}
 	if password == "" {
-		slog.Warn("SPA has no administrator: set SPA_ADMIN_USERNAME and SPA_ADMIN_PASSWORD for the first start")
+		slog.Warn("Keystone has no administrator: set SPA_ADMIN_USERNAME and SPA_ADMIN_PASSWORD for the first start")
 		return nil
 	}
 	hash, err := policy.HashPassword(password)

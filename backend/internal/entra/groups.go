@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/sbrw-evc/spa/internal/directory"
+	"github.com/sbrw-evc/keystone/internal/directory"
 )
 
 type graphError struct {

@@ -1,30 +1,37 @@
-# SPA — Single Point of Authorization
+# Keystone
+
+*Formerly **SPA (Single Point of Authorization)**. Keystone — sign-in and access for the Umbrella family.*
 
 [Русская версия](README.ru.md)
 
-SPA is the one place where the people of the Umbrella family sign in and where their access is decided. It keeps
+Keystone is the one place where the people of the Umbrella family sign in and where their access is decided. It keeps
 the accounts, groups, the password policy, passkeys, the connections to directories (LDAP / Active Directory,
 Microsoft Entra ID) and to external sign-in providers (Google, Apple, any OpenID Connect provider), and it decides
 which roles a person has in each application.
 
-**Umbrella Monitoring, Umbrella Flow, Inventory DB, Network Control** and any other OpenID Connect application keep
-no passwords, no password policy, no passkeys and no directory settings: they send people to SPA to sign in, read
-their people and roles from SPA's federation API, publish their role catalogue to SPA and enforce the roles SPA
+**Beacon, Current, Ledger, Network Control** and any other OpenID Connect application keep
+no passwords, no password policy, no passkeys and no directory settings: they send people to Keystone to sign in, read
+their people and roles from Keystone's federation API, publish their role catalogue to Keystone and enforce the roles Keystone
 gives them.
 
 ![Sign-in](docs/screens/signin-light.png)
 
-- [docs/protocol.md](docs/protocol.md) — how applications connect to SPA (OpenID Connect, the connection key, the
+- [docs/protocol.md](docs/protocol.md) — how applications connect to Keystone (OpenID Connect, the connection key, the
   federation API, user synchronisation).
 - [docs/api.md](docs/api.md) — the HTTP API: the OpenID Connect provider, the federation API and the `/api/v1`
   API of the web app.
+
+The other members of the family: [Beacon](https://github.com/sbrw-evc/beacon) (alerts from monitoring systems become
+incidents, paging and response; formerly Umbrella Monitoring), [Ledger](https://github.com/sbrw-evc/ledger)
+(inventory — DCIM/IPAM — and spreadsheet databases; formerly Inventory DB), [Current](https://github.com/sbrw-evc/current)
+(network traffic and network devices; formerly Umbrella Flow) and Network Control.
 
 ## What it does
 
 | | |
 | --- | --- |
 | Sign-in | local passwords under the password policy, LDAP / Active Directory, passkeys (Windows Hello, Touch ID, Face ID, Android, security keys), Microsoft Entra ID, Google, Apple, any OpenID Connect provider |
-| People and groups | local accounts and accounts from directories and providers; SPA groups and directory groups (by DN or Entra object ID, created ahead of their members' first sign-in) |
+| People and groups | local accounts and accounts from directories and providers; Keystone groups and directory groups (by DN or Entra object ID, created ahead of their members' first sign-in) |
 | Applications | a three-step wizard connects an application and shows its connection key once; rules *person or group → role* decide who signs in to which application with which roles |
 | Two-step verification | an authenticator app (TOTP, RFC 6238) as the second factor after a password (local or directory), one-time recovery codes; the password policy can require it of administrators or of everyone; a passkey counts as two factors by itself |
 | Password policy | length, digits, special characters, mixed case, allowed alphabets, common-password blocking, lifetime with an expiry warning, history, lockout, a required second factor |
@@ -76,7 +83,7 @@ gives them.
 ![Two-step verification required by the policy, set up during the sign-in](docs/screens/signin-totp-setup-ru.png)
 ![Home in Russian](docs/screens/home-ru.png)
 
-## Running SPA
+## Running Keystone
 
 ### Docker Compose
 
@@ -86,23 +93,23 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-SPA listens on `http://localhost:8080` (`SPA_PORT`). Sign in as `admin` with `SPA_ADMIN_PASSWORD`; SPA asks for
+Keystone listens on `http://localhost:8080` (`SPA_PORT`). Sign in as `admin` with `SPA_ADMIN_PASSWORD`; Keystone asks for
 a new password at once. The **First steps** list on the home page leads through the rest: the password policy, a
 passkey, a directory, the first application and its roles.
 
 The image (`Dockerfile`) builds the web app with Node, the server with Go, and ships both on a distroless base
-(non-root, about 27 MB). Put SPA behind a TLS reverse proxy in production and set `SPA_TRUSTED_PROXIES`.
+(non-root, about 27 MB). Put Keystone behind a TLS reverse proxy in production and set `SPA_TRUSTED_PROXIES`.
 
 ### Configuration
 
 | variable | |
 | --- | --- |
 | `SPA_DATABASE_URL` | PostgreSQL connection string (required) |
-| `SPA_PUBLIC_URL` | the address of SPA and its OpenID Connect issuer, e.g. `https://spa.example.com` |
+| `SPA_PUBLIC_URL` | the address of Keystone and its OpenID Connect issuer, e.g. `https://keystone.example.com` |
 | `SPA_MASTER_KEY` / `SPA_MASTER_KEY_FILE` | base64 of 32 bytes that seals secrets in the database |
 | `BAO_ADDR`, `BAO_TOKEN`, `BAO_MOUNT` | keep secrets in OpenBao (KV v2) instead |
-| `SPA_ADMIN_USERNAME`, `SPA_ADMIN_PASSWORD` | the first administrator, created when SPA has no people |
-| `SPA_SESSION_HOURS` | SPA session lifetime (default 12) |
+| `SPA_ADMIN_USERNAME`, `SPA_ADMIN_PASSWORD` | the first administrator, created when Keystone has no people |
+| `SPA_SESSION_HOURS` | Keystone session lifetime (default 12) |
 | `SPA_TRUSTED_PROXIES` | networks whose `X-Forwarded-For` / `X-Forwarded-Host` are trusted |
 | `SPA_LISTEN` | listen address (default `:8080`) |
 | `SPA_WEB_DIR` | the built web app (default `./web`; `/app/web` in the image) |
@@ -112,7 +119,7 @@ The image (`Dockerfile`) builds the web app with Node, the server with Go, and s
 People who sign in with a password — local accounts and LDAP / Active Directory accounts — turn on two-step
 verification in **Account and security**: scan the QR code with an authenticator app (Google Authenticator,
 Microsoft Authenticator, 1Password, Aegis, …; or type the key), confirm with a code, and save the ten one-time
-recovery codes shown once. From then on SPA asks for the 6-digit code (30-second steps, one step of clock drift
+recovery codes shown once. From then on Keystone asks for the 6-digit code (30-second steps, one step of clock drift
 either way, each code accepted once) after a right password; a recovery code works instead of a code once. Turning
 it off, changing the app and new recovery codes need a current code.
 
@@ -122,7 +129,7 @@ expired password). A passkey sign-in is two-factor by itself and never asks for 
 Entra ID, Google, Apple or OpenID Connect leaves the second factor to that provider. An administrator turns off the
 second factor of a person who lost their phone (**Users → Actions**).
 
-The secret is kept like SPA's other secrets — in OpenBao or sealed with the master key in the database
+The secret is kept like Keystone's other secrets — in OpenBao or sealed with the master key in the database
 (`totp/<user id>`) — and the recovery codes only as keyed hashes (HMAC-SHA256). Wrong codes count like wrong
 passwords (the lockout of the policy, and 20 attempts per address in 5 minutes). Enrolment, turning off, wrong codes
 and used recovery codes go to the audit log. Applications see a password sign-in with a code as `amr: ["pwd", "otp",
@@ -132,35 +139,57 @@ and used recovery codes go to the audit log. Applications see a password sign-in
 
 **Applications → Connect an application**: choose the type, enter the address, give groups or people roles, and
 copy the **connection key** (`spa1.…`) into the application's `SPA_CONNECTION_KEY`. The application then offers
-"Sign in with SPA" and synchronises its people every 5 minutes. **Issue a new key** replaces the key; the old one
+"Sign in with Keystone" and synchronises its people every 5 minutes. **Issue a new key** replaces the key; the old one
 stops working at once. Details: [docs/protocol.md](docs/protocol.md).
 
 ## Development
 
 ```
-backend/   Go server: cmd/spa, internal/app (HTTP), store (PostgreSQL), policy, totp, passkey, directory, entra, oidcx, secrets
+backend/   Go server: cmd/keystone, internal/app (HTTP), store (PostgreSQL), policy, totp, passkey, directory, entra, oidcx, secrets
 web/       React + TypeScript + Vite web app (src/pages, src/components, src/i18n)
 scripts/   seed-demo.mjs (demo data through the API), screenshots.mjs (README screenshots with Playwright),
-           e2e-monitoring.mjs (end-to-end check with Umbrella Monitoring)
+           e2e-beacon.mjs (end-to-end check with Beacon)
 docs/      protocol.md, api.md, e2e.md, screens/
 ```
 
 | | |
 | --- | --- |
-| `make build` | the web app (`web/dist`) and the server (`backend/spa`) |
+| `make build` | the web app (`web/dist`) and the server (`backend/keystone`) |
 | `make test` | `go vet` and `go test ./...` (set `SPA_TEST_POSTGRES` for the database tests) and the web tests (vitest) |
-| `make run` | build and run SPA with the built web app (needs `SPA_DATABASE_URL` and `SPA_MASTER_KEY`) |
-| `make dev` | the web app with hot reload on `:5173`, the API proxied to SPA on `:8080` |
-| `make docker`, `make up`, `make down` | the image; SPA and PostgreSQL with Docker Compose |
-| `make seed` | demo data in a running SPA: people, groups, the four Umbrella applications, a password policy |
+| `make run` | build and run Keystone with the built web app (needs `SPA_DATABASE_URL` and `SPA_MASTER_KEY`) |
+| `make dev` | the web app with hot reload on `:5173`, the API proxied to Keystone on `:8080` |
+| `make docker`, `make up`, `make down` | the image; Keystone and PostgreSQL with Docker Compose |
+| `make seed` | demo data in a running Keystone: people, groups, the four Umbrella applications, a password policy |
 | `make screenshots` | the screenshots in `docs/screens` (on an empty database; Playwright with Chromium) |
-| `make e2e-monitoring` | end-to-end check of a live SPA with a real Umbrella Monitoring in Chromium: connecting, roles, sign-in with the second factor, synchronisation, disabling ([docs/e2e.md](docs/e2e.md)) |
+| `make e2e-beacon` | end-to-end check of a live Keystone with a real Beacon in Chromium: connecting, roles, sign-in with the second factor, synchronisation, disabling ([docs/e2e.md](docs/e2e.md)) |
 
-The web app follows the Umbrella design (the tokens and controls of the Umbrella monitoring app, as in
-Inventory DB): the shell with the sidebar and the page block, cards, tables, pills, segmented controls and dialogs,
+The web app follows the Umbrella design (the tokens and controls of Beacon, as in
+Ledger): the shell with the sidebar and the page block, cards, tables, pills, segmented controls and dialogs,
 light and dark themes kept in `localStorage` (`spa.theme`), and English and Russian. The English strings are the
 keys of `web/src/i18n/en.ts` and `ru.ts`; `web/src/i18n/completeness.test.ts` fails when a string used by the app —
 or an error message of the API — lacks a text in either language.
 
 The web app calls only the `/api/v1` API with the session cookie; every request that changes something carries
 `X-Requested-With: spa`. Pages an auditor may read are shown read-only to auditors; the API enforces the roles.
+
+## Compatibility after the rename
+
+Keystone was called SPA. The product, the binary (`cmd/keystone`, `/app/keystone` in the image), the Docker image
+(`keystone`), the compose project and service (`keystone`), the Go module (`github.com/sbrw-evc/keystone`) and the web
+package (`@keystone/web`) carry the new name. These identifiers keep the old spelling on purpose, because connected
+applications and existing installations depend on them:
+
+| kept | why |
+| --- | --- |
+| the Keystone protocol: key prefix `spa1.`, `SPA_CONNECTION_KEY`, `SPA_CONNECTION_KEY_FILE`, `SPA_PUBLIC_URL` in the applications, `/api/spa/v1/*`, `/api/auth/spa/start` and `/api/auth/spa/callback` in the applications, the OpenBao key `spa/connection_key`, the `spa_admin` claim, `source = spa` in the applications | the wire format between Keystone and every connected application ([docs/protocol.md](docs/protocol.md)) |
+| environment variables `SPA_*` (`SPA_DATABASE_URL`, `SPA_MASTER_KEY`, `SPA_TEST_POSTGRES`, …), `BAO_*` | existing deployments |
+| the database name and user `spa`, the compose volume `spa_pgdata`, table and column names (`users.spa_role`) | existing data |
+| the OpenBao mount `spa` (default of `BAO_MOUNT`) | existing secrets |
+| cookies `spa_session`, `spa_sso`; client IDs `spa_…`, federation tokens `spat_…` | sessions and issued credentials stay valid |
+| the CSRF header value `X-Requested-With: spa`, the JSON field `spa_role` | API clients and scripts |
+| the audit actor `spa` for Keystone's own actions | the existing audit log stays searchable |
+| `localStorage` keys `spa.theme`, `spa.sidebar.collapsed`, `umbrella.locale` | people's saved preferences |
+| the application type IDs `umbrella-monitoring`, `inventory-db`, `umbrella-flow` | still accepted by the API and mapped to `beacon`, `ledger`, `current` (migration `0004_app_types.sql` rewrote the stored ones) |
+| `make e2e-monitoring`, `UMBRELLA_MONITORING_DIR`, `UMBRELLA_MONITORING_REF` | aliases of `make e2e-beacon`, `BEACON_DIR`, `BEACON_REF` |
+
+The GitHub repository is to be renamed to `sbrw-evc/keystone`; GitHub redirects the old address.

@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/oidcx"
-	"github.com/sbrw-evc/spa/internal/secrets"
+	"github.com/sbrw-evc/keystone/internal/oidcx"
+	"github.com/sbrw-evc/keystone/internal/secrets"
 )
 
 func randomToken(n int) string {
@@ -109,7 +109,7 @@ func (k *signingKeys) JWKS(ctx context.Context) (map[string]any, error) {
 	return map[string]any{"keys": keys}, nil
 }
 
-// Verify checks a token SPA signed (access tokens) and decodes its claims.
+// Verify checks a token Keystone signed (access tokens) and decodes its claims.
 func (k *signingKeys) Verify(ctx context.Context, raw string, out any) error {
 	if err := k.load(ctx); err != nil {
 		return err

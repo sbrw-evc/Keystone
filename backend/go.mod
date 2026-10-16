@@ -1,4 +1,4 @@
-module github.com/sbrw-evc/spa
+module github.com/sbrw-evc/keystone
 
 go 1.26.0
 

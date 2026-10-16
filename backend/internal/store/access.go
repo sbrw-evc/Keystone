@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/passkey"
+	"github.com/sbrw-evc/keystone/internal/passkey"
 )
 
 // ---- groups
@@ -125,7 +125,7 @@ type DirGroup struct {
 }
 
 // SyncDirectoryGroups makes the person a member of exactly these groups of source (created when missing, matched by
-// their ID in the directory, so renaming them in SPA keeps them); memberships in groups of other sources are kept.
+// their ID in the directory, so renaming them in Keystone keeps them); memberships in groups of other sources are kept.
 func (s *Store) SyncDirectoryGroups(ctx context.Context, userID, source string, groups []DirGroup) error {
 	tx, err := s.DB.Begin(ctx)
 	if err != nil {
@@ -341,6 +341,18 @@ type Application struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
+// legacyAppTypes maps the application type IDs used before the products of the Umbrella family were renamed to
+// the current ones. Applications stored or sent with an old ID keep working.
+var legacyAppTypes = map[string]string{"umbrella-monitoring": "beacon", "inventory-db": "ledger", "umbrella-flow": "current"}
+
+// CanonicalAppType returns the current ID of an application type (an old ID is mapped; others are returned as is).
+func CanonicalAppType(t string) string {
+	if n, ok := legacyAppTypes[t]; ok {
+		return n
+	}
+	return t
+}
+
 const appCols = `id, type, name, base_url, redirect_uris, logout_uris, client_id, secret_hash, token_hash, roles, default_role,
 	roles_published, last_sync_at, created_at, updated_at`
 
@@ -354,6 +366,7 @@ func scanApp(row scanner) (Application, error) {
 	if err != nil {
 		return a, mapErr(err)
 	}
+	a.Type = CanonicalAppType(a.Type)
 	json.Unmarshal(roles, &a.Roles) //nolint:errcheck
 	if a.Roles == nil {
 		a.Roles = []Role{}

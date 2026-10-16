@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/totp"
+	"github.com/sbrw-evc/keystone/internal/totp"
 )
 
 func code(t *testing.T, secret string, at time.Time) string {
@@ -52,7 +52,7 @@ func TestTOTP(t *testing.T) {
 	// set-up: QR code and secret, confirmed with a code, recovery codes once
 	var s totpSetup
 	if c := h.call(admin, "POST", "/api/v1/me/totp/setup", map[string]any{}, &s); c != 200 || len(s.Secret) != 32 ||
-		!strings.HasPrefix(s.QR, "data:image/png;base64,") || !strings.HasPrefix(s.URI, "otpauth://totp/SPA:admin?") {
+		!strings.HasPrefix(s.QR, "data:image/png;base64,") || !strings.HasPrefix(s.URI, "otpauth://totp/Keystone:admin?") {
 		t.Fatalf("setup: %d %+v", c, s)
 	}
 	var e apiErr

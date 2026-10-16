@@ -61,7 +61,7 @@ function UserDialog({ user, groups, onClose, onSaved }: { user: User | null; gro
         <Field label={t('User name')}>
           <input className="input" value={v.username} disabled={!!user && user.source !== 'local'} onChange={(e) => set({ username: e.target.value })} autoFocus={!user} />
         </Field>
-        <Field label={t('SPA role')} hint={t('Administrators manage SPA, auditors read everything')}>
+        <Field label={t('Keystone role')} hint={t('Administrators manage Keystone, auditors read everything')}>
           <select className="input" value={v.spa_role} onChange={(e) => set({ spa_role: e.target.value as SPARole })}>
             {(['user', 'auditor', 'admin'] as SPARole[]).map((r) => (
               <option key={r} value={r}>
@@ -102,7 +102,7 @@ function UserDialog({ user, groups, onClose, onSaved }: { user: User | null; gro
           </div>
         </Field>
       )}
-      {user && <Switch checked={v.disabled} onChange={(d) => set({ disabled: d })} label={t('Disabled')} hint={t('A disabled person cannot sign in; their sessions in SPA and the applications end')} />}
+      {user && <Switch checked={v.disabled} onChange={(d) => set({ disabled: d })} label={t('Disabled')} hint={t('A disabled person cannot sign in; their sessions in Keystone and the applications end')} />}
       <ErrorNotice error={error} />
     </Modal>
   );
@@ -228,7 +228,7 @@ export function UsersPage() {
     <>
       <PageHead
         title={t('Users')}
-        subtitle={t('Everyone who signs in through SPA: local accounts and people from directories and providers.')}
+        subtitle={t('Everyone who signs in through Keystone: local accounts and people from directories and providers.')}
         actions={
           admin && (
             <button type="button" className="btn btn-primary" onClick={() => setEdit('new')}>
@@ -259,7 +259,7 @@ export function UsersPage() {
               <tr>
                 <th>{t('Person')}</th>
                 <th>{t('Signs in with')}</th>
-                <th>{t('SPA role')}</th>
+                <th>{t('Keystone role')}</th>
                 <th>{t('Groups')}</th>
                 <th>{t('Applications')}</th>
                 <th>{t('Last sign-in')}</th>

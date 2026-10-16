@@ -1,18 +1,18 @@
-//go:build spae2e
+//go:build keystonee2e
 
-// Package spae2e runs Umbrella Monitoring for the end-to-end check of SPA (scripts/e2e-monitoring.mjs).
+// Package spae2e runs Beacon for the end-to-end check of Keystone (scripts/e2e-beacon.mjs).
 //
-// The script copies this file into a snapshot of the Umbrella Monitoring repository
-// (app/backend/cmd/spa-e2e/) and builds it as a test binary: a test, because OpenBao is the fake
-// OpenBao of Monitoring's own tests (secretstest), which needs a *testing.T. Everything else is
-// what cmd/umbrella does after its setup wizard: the state in PostgreSQL, the system and preset
-// roles, the migrations, the application with its background work (the SPA schedule among it) and
-// the built web UI. Nothing in the Monitoring repository is changed.
+// The script copies this file into a snapshot of the Beacon repository
+// (app/backend/cmd/keystone-e2e/) and builds it as a test binary: a test, because OpenBao is the fake
+// OpenBao of Beacon's own tests (secretstest), which needs a *testing.T. Everything else is
+// what cmd/beacon does after its setup wizard: the state in PostgreSQL, the system and preset
+// roles, the migrations, the application with its background work (the Keystone schedule among it) and
+// the built web UI. Nothing in the Beacon repository is changed.
 //
 // Environment: UM_ADDR (listen address), UM_POSTGRES (host:port:user:password:database, an
 // empty database), UM_WEB_DIR (the built web UI), SPA_CONNECTION_KEY and SPA_PUBLIC_URL as
-// Monitoring reads them.
-package spae2e
+// Beacon reads them.
+package keystonee2e
 
 import (
 	"context"
@@ -29,14 +29,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbrw-evc/umbrella-monitoring/app/backend/internal/app"
-	"github.com/sbrw-evc/umbrella-monitoring/app/backend/internal/auth"
-	"github.com/sbrw-evc/umbrella-monitoring/app/backend/internal/config"
-	"github.com/sbrw-evc/umbrella-monitoring/app/backend/internal/httpx"
-	"github.com/sbrw-evc/umbrella-monitoring/app/backend/internal/ingest"
-	"github.com/sbrw-evc/umbrella-monitoring/app/backend/internal/secrets/secretstest"
-	"github.com/sbrw-evc/umbrella-monitoring/app/backend/internal/spa"
-	"github.com/sbrw-evc/umbrella-monitoring/app/backend/internal/store"
+	"github.com/sbrw-evc/beacon/app/backend/internal/app"
+	"github.com/sbrw-evc/beacon/app/backend/internal/auth"
+	"github.com/sbrw-evc/beacon/app/backend/internal/config"
+	"github.com/sbrw-evc/beacon/app/backend/internal/httpx"
+	"github.com/sbrw-evc/beacon/app/backend/internal/ingest"
+	"github.com/sbrw-evc/beacon/app/backend/internal/secrets/secretstest"
+	"github.com/sbrw-evc/beacon/app/backend/internal/keystone"
+	"github.com/sbrw-evc/beacon/app/backend/internal/store"
 )
 
 func pgConfig(t *testing.T) store.PGConfig {
@@ -79,8 +79,8 @@ func TestServe(t *testing.T) {
 	}
 	stored := pg
 	stored.Password = ""
-	a := app.New(app.Options{Version: "spa-e2e", Web: httpx.Web(os.Getenv("UM_WEB_DIR")), Ingest: ingest.DefaultConfig(),
-		SPAKey: os.Getenv(spa.Env), SPAPublicURL: os.Getenv(spa.EnvPublicURL)},
+	a := app.New(app.Options{Version: "keystone-e2e", Web: httpx.Web(os.Getenv("UM_WEB_DIR")), Ingest: ingest.DefaultConfig(),
+		KeystoneKey: os.Getenv(keystone.Env), KeystonePublicURL: os.Getenv(keystone.EnvPublicURL)},
 		app.Deps{Config: config.File{Postgres: stored, CompletedAt: &now}, Vault: vault, Backend: backend, Store: st, Sessions: auth.NewSessions()})
 
 	bg, cancel := context.WithCancel(context.Background())
@@ -101,7 +101,7 @@ func TestServe(t *testing.T) {
 		defer c()
 		_ = srv.Shutdown(sctx)
 	}()
-	fmt.Println("UMBRELLA READY", ln.Addr().String())
+	fmt.Println("BEACON READY", ln.Addr().String())
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		t.Error(err)
 	}

@@ -1,4 +1,4 @@
-// WebAuthn helpers: SPA's begin calls return go-webauthn options ({publicKey: {...}}) with base64url binary
+// WebAuthn helpers: Keystone's begin calls return go-webauthn options ({publicKey: {...}}) with base64url binary
 // fields; the finish calls take the browser's credential in the same JSON form.
 
 export function b64urlToBuf(s: string): ArrayBuffer {

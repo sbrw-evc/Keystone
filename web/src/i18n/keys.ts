@@ -1,5 +1,5 @@
 // Finds the translation keys of the app: literal t(...) calls in the sources, the messages of ApiError made in the
-// browser, and the English messages of SPA's API errors (fail(status, "code", "message") in backend/internal/app), which
+// browser, and the English messages of Keystone's API errors (fail(status, "code", "message") in backend/internal/app), which
 // describeError translates by text.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';

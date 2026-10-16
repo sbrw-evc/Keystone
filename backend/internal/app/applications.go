@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 func hmacHex(key []byte, v string) string {
@@ -28,16 +28,18 @@ func writeJSONCached(w http.ResponseWriter, v any) {
 }
 
 // App types and their fixed role catalogues (an application replaces its catalogue when it publishes one).
+// The type IDs of the Umbrella family follow the product names; the IDs used before the rename are still accepted
+// (store.CanonicalAppType maps them, and migration 0004 rewrote the stored ones).
 var appTypes = map[string][]store.Role{
-	"umbrella-monitoring": {{ID: "admin", Name: "Administrator", Description: "Everything, including settings"}, {ID: "user", Name: "User", Description: "Incidents, on-call and the catalogue"}},
-	"umbrella-flow":       {{ID: "admin", Name: "Administrator", Description: "Everything, including settings"}},
-	"inventory-db":        {{ID: "admin", Name: "Administrator"}, {ID: "editor", Name: "Editor"}, {ID: "viewer", Name: "Viewer"}},
-	"network-control":     {{ID: "admin", Name: "Administrator"}, {ID: "operator", Name: "Operator"}, {ID: "viewer", Name: "Viewer"}},
-	"oidc":                {{ID: "user", Name: "User"}},
+	"beacon":          {{ID: "admin", Name: "Administrator", Description: "Everything, including settings"}, {ID: "user", Name: "User", Description: "Incidents, on-call and the catalogue"}},
+	"current":         {{ID: "admin", Name: "Administrator", Description: "Everything, including settings"}},
+	"ledger":          {{ID: "admin", Name: "Administrator"}, {ID: "editor", Name: "Editor"}, {ID: "viewer", Name: "Viewer"}},
+	"network-control": {{ID: "admin", Name: "Administrator"}, {ID: "operator", Name: "Operator"}, {ID: "viewer", Name: "Viewer"}},
+	"oidc":            {{ID: "user", Name: "User"}},
 }
 
-var appTypeNames = map[string]string{"umbrella-monitoring": "Umbrella Monitoring", "umbrella-flow": "Umbrella Flow",
-	"inventory-db": "Inventory DB", "network-control": "Network Control", "oidc": "OpenID Connect application"}
+var appTypeNames = map[string]string{"beacon": "Beacon", "current": "Current", "ledger": "Ledger",
+	"network-control": "Network Control", "oidc": "OpenID Connect application"}
 
 var roleIDRe = regexp.MustCompile(`^[a-z0-9_.:-]{1,64}$`)
 
@@ -65,6 +67,7 @@ func (in AppInput) normalize(old *store.Application) (store.Application, error) 
 	if old != nil {
 		a = *old
 	}
+	in.Type = store.CanonicalAppType(in.Type)
 	if _, ok := appTypes[in.Type]; !ok {
 		return a, fail(http.StatusBadRequest, "invalid_type", "Choose the type of the application")
 	}

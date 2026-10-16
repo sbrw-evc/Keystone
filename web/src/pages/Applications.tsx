@@ -8,20 +8,20 @@ import { formatAgo, useT, type TFn } from '../i18n';
 import { isAdmin, useAuth, useLoad } from '../lib/auth';
 import { toast } from '../lib/toast';
 
-const TYPES: AppType[] = ['umbrella-monitoring', 'umbrella-flow', 'inventory-db', 'network-control', 'oidc'];
+const TYPES: AppType[] = ['beacon', 'current', 'ledger', 'network-control', 'oidc'];
 
 export function typeLabel(type: AppType, t: TFn) {
-  return type === 'oidc' ? t('OpenID Connect application') : { 'umbrella-monitoring': 'Umbrella Monitoring', 'umbrella-flow': 'Umbrella Flow', 'inventory-db': 'Inventory DB', 'network-control': 'Network Control' }[type];
+  return type === 'oidc' ? t('OpenID Connect application') : { beacon: 'Beacon', current: 'Current', ledger: 'Ledger', 'network-control': 'Network Control' }[type];
 }
 
 function typeHint(type: AppType, t: TFn) {
   switch (type) {
-    case 'umbrella-monitoring':
-      return t('Incidents, on-call and the service catalogue');
-    case 'umbrella-flow':
-      return t('Workflows and automation');
-    case 'inventory-db':
-      return t('DCIM, IPAM and bases');
+    case 'beacon':
+      return t('Alerts into incidents, paging and response');
+    case 'current':
+      return t('Network traffic and network devices');
+    case 'ledger':
+      return t('Inventory (DCIM, IPAM) and spreadsheet databases');
     case 'network-control':
       return t('Network devices and configuration');
     case 'oidc':
@@ -117,7 +117,7 @@ function KeyOnce({ conn }: { conn: Connection }) {
   return (
     <div className="stack" style={{ gap: 12 }}>
       <div className="notice notice-success">
-        <b>{t('{name} is connected.', { name: conn.application.name })}</b> {t('Copy the connection key now: SPA shows it only once.')}
+        <b>{t('{name} is connected.', { name: conn.application.name })}</b> {t('Copy the connection key now: Keystone shows it only once.')}
       </div>
       <div className="key-box">{conn.key}</div>
       <div className="row">
@@ -129,9 +129,9 @@ function KeyOnce({ conn }: { conn: Connection }) {
           <li>
             {t('Put the key into the deployment configuration of the application:')} <code>SPA_CONNECTION_KEY=spa1.…</code> {t('(or a file named by SPA_CONNECTION_KEY_FILE, or the OpenBao key spa/connection_key).')}
           </li>
-          <li>{t('Restart the application. Its sign-in page then offers "Sign in with SPA".')}</li>
+          <li>{t('Restart the application. Its sign-in page then offers "Sign in with Keystone".')}</li>
           <li>
-            {t('Redirect address registered in SPA:')} <code>{conn.application.callback}</code>
+            {t('Redirect address registered in Keystone:')} <code>{conn.application.callback}</code>
           </li>
         </ol>
       </div>
@@ -142,12 +142,12 @@ function KeyOnce({ conn }: { conn: Connection }) {
 function Wizard({ list, dir, onClose, onDone }: { list: ApplicationList; dir: Directory; onClose: () => void; onDone: () => void }) {
   const t = useT();
   const [step, setStep] = useState(0);
-  const [type, setType] = useState<AppType>('umbrella-monitoring');
+  const [type, setType] = useState<AppType>('beacon');
   const [name, setName] = useState('');
   const [base, setBase] = useState('https://');
   const [redirects, setRedirects] = useState('');
   const [logouts, setLogouts] = useState('');
-  const [roles, setRoles] = useState<Role[]>(list.presets['umbrella-monitoring']);
+  const [roles, setRoles] = useState<Role[]>(list.presets.beacon);
   const [rules, setRules] = useState<Assignment[]>([]);
   const [conn, setConn] = useState<Connection | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -401,7 +401,7 @@ export function ApplicationsPage() {
     <>
       <PageHead
         title={t('Applications')}
-        subtitle={t('Applications that sign people in with SPA, their roles and who gets them.')}
+        subtitle={t('Applications that sign people in with Keystone, their roles and who gets them.')}
         actions={
           admin && (
             <button type="button" className="btn btn-primary" onClick={openWizard}>
@@ -419,7 +419,7 @@ export function ApplicationsPage() {
           <Empty
             icon={<AppWindow className="icon" />}
             title={t('No applications yet')}
-            text={t('Connect Umbrella Monitoring, Umbrella Flow, Inventory DB, Network Control or any OpenID Connect application.')}
+            text={t('Connect Beacon, Current, Ledger, Network Control or any OpenID Connect application.')}
             action={
               admin && (
                 <button type="button" className="btn btn-primary" onClick={openWizard}>
@@ -540,7 +540,7 @@ export function ApplicationsPage() {
       {remove && (
         <Confirm
           title={t('Remove {name}?', { name: remove.name })}
-          text={t('Nobody can sign in to the application with SPA any more; its rules are deleted.')}
+          text={t('Nobody can sign in to the application with Keystone any more; its rules are deleted.')}
           confirm={t('Remove')}
           danger
           onClose={() => setRemove(null)}

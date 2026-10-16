@@ -73,7 +73,7 @@ export function AuditPage() {
   }, [q]);
   return (
     <>
-      <PageHead title={t('Audit log')} subtitle={t('Every sign-in and every change in SPA.')} />
+      <PageHead title={t('Audit log')} subtitle={t('Every sign-in and every change in Keystone.')} />
       <div className="toolbar">
         <div className="search">
           <Search size={16} />

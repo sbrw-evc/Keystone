@@ -37,7 +37,7 @@ export function GeneralPage() {
     <>
       <PageHead
         title={t('General')}
-        subtitle={t('How SPA presents itself, passkeys and the signing key of its tokens.')}
+        subtitle={t('How Keystone presents itself, passkeys and the signing key of its tokens.')}
         actions={
           admin && (
             <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>
@@ -50,7 +50,7 @@ export function GeneralPage() {
       <ErrorNotice error={saveError} />
       <section className="card">
         <div className="card-head">
-          <h2>{t('SPA')}</h2>
+          <h2>{t('Keystone')}</h2>
         </div>
         <div className="card-body">
           <dl className="kv">
@@ -75,7 +75,7 @@ export function GeneralPage() {
             disabled={ro}
             onChange={(x) => setV({ ...v, general: { ...v.general, allow_local: x } })}
             label={t('Local accounts may sign in with a password')}
-            hint={t('Turn off when everyone comes from a directory or a provider. SPA administrators can always sign in with a password.')}
+            hint={t('Turn off when everyone comes from a directory or a provider. Keystone administrators can always sign in with a password.')}
           />
         </div>
       </section>
@@ -85,7 +85,7 @@ export function GeneralPage() {
         </div>
         <div className="card-body">
           <Switch checked={v.passkeys.enabled} disabled={ro} onChange={(x) => setV({ ...v, passkeys: { ...v.passkeys, enabled: x } })} label={t('Passkeys are allowed')} hint={t('Windows Hello, Touch ID, Face ID, Android and security keys')} />
-          <Field label={t('Passkey domain')} hint={t('Empty — the host name of SPA. A parent domain keeps passkeys working when SPA moves between its subdomains.')}>
+          <Field label={t('Passkey domain')} hint={t('Empty — the host name of Keystone. A parent domain keeps passkeys working when Keystone moves between its subdomains.')}>
             <input className="input mono" value={v.passkeys.rp_id} disabled={ro} onChange={(e) => setV({ ...v, passkeys: { ...v.passkeys, rp_id: e.target.value } })} placeholder="example.com" />
           </Field>
         </div>
@@ -97,7 +97,7 @@ export function GeneralPage() {
               <KeyRound size={18} />
               {t('Signing key')}
             </h2>
-            <p className="muted">{t('SPA signs ID tokens with an RSA key from its secret store. The JWKS lists the current and the previous key, so tokens signed before a rotation still verify.')}</p>
+            <p className="muted">{t('Keystone signs ID tokens with an RSA key from its secret store. The JWKS lists the current and the previous key, so tokens signed before a rotation still verify.')}</p>
           </div>
           {admin && (
             <button type="button" className="btn" onClick={() => setRotate(true)}>

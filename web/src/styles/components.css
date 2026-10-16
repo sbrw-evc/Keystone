@@ -1,4 +1,4 @@
-/* Dialogs, toasts and switches (Inventory DB components.css) and the pages of SPA. */
+/* Dialogs, toasts and switches (Ledger components.css) and the pages of Keystone. */
 
 /* ---------- Modal ---------- */
 .modal-backdrop {
@@ -88,7 +88,7 @@
 .switch-row .switch { margin-top: 1px; }
 .switch-row > span:last-child { display: flex; flex-direction: column; gap: 2px; }
 
-/* ---------- SPA pages ---------- */
+/* ---------- Keystone pages ---------- */
 .page-enter { animation: page-in 0.22s ease-out; }
 @keyframes page-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .page-enter { animation: none; } }
@@ -137,9 +137,9 @@
 .app-tile-open { margin-left: auto; color: var(--muted); }
 .app-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 11px; color: #fff; }
 .app-icon-sm { width: 32px; height: 32px; border-radius: 9px; }
-.app-umbrella-monitoring { background: linear-gradient(180deg, #f83039, #e0242f); }
-.app-umbrella-flow { background: linear-gradient(180deg, #7c3aed, #6d28d9); }
-.app-inventory-db { background: linear-gradient(180deg, #f97316, #ea580c); }
+.app-beacon { background: linear-gradient(180deg, #f83039, #e0242f); }
+.app-current { background: linear-gradient(180deg, #7c3aed, #6d28d9); }
+.app-ledger { background: linear-gradient(180deg, #f97316, #ea580c); }
 .app-network-control { background: linear-gradient(180deg, #0ea5e9, #0284c7); }
 .app-oidc { background: linear-gradient(180deg, #64748b, #475569); }
 

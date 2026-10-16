@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sbrw-evc/spa/internal/store"
+	"github.com/sbrw-evc/keystone/internal/store"
 )
 
 const (
@@ -62,7 +62,7 @@ func (a *App) jwks(w http.ResponseWriter, r *http.Request) {
 	writeJSONCached(w, k)
 }
 
-// authorize checks the request; with a valid SPA session the code goes back at once, otherwise the sign-in page
+// authorize checks the request; with a valid Keystone session the code goes back at once, otherwise the sign-in page
 // takes over with the sealed request.
 func (a *App) authorize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -108,7 +108,7 @@ func (a *App) authorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if q.Get("prompt") == "none" {
-		bad("login_required", "the person is not signed in to SPA")
+		bad("login_required", "the person is not signed in to Keystone")
 		return
 	}
 	sealed, err := a.state.Seal(ctx, "authz", req, 30*time.Minute)
@@ -145,7 +145,7 @@ func sep(u string) string {
 func (a *App) finishAuthorize(ctx context.Context, iss string, u store.User, s store.Session, req authzRequest) (string, error) {
 	app, err := a.st.ApplicationByClientID(ctx, req.ClientID)
 	if err != nil {
-		return "", fail(http.StatusBadRequest, "invalid_client", "The application was removed from SPA")
+		return "", fail(http.StatusBadRequest, "invalid_client", "The application was removed from Keystone")
 	}
 	roles, err := a.rolesIn(ctx, app, u.ID)
 	if err != nil {
@@ -244,7 +244,7 @@ func (a *App) token(w http.ResponseWriter, r *http.Request) {
 	}
 	s, err := a.st.SessionByID(ctx, c.SessionID)
 	if err != nil {
-		tokenFail(w, http.StatusBadRequest, "invalid_grant", "the SPA session has ended")
+		tokenFail(w, http.StatusBadRequest, "invalid_grant", "the Keystone session has ended")
 		return
 	}
 	claims, err := a.claims(ctx, app, u, &s, c.Scope)
@@ -357,7 +357,7 @@ func (a *App) userinfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, c)
 }
 
-// logout ends the SPA session and returns to the application when its address is registered.
+// logout ends the Keystone session and returns to the application when its address is registered.
 func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	a.endSession(w, r)
@@ -375,7 +375,7 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusFound)
 }
 
-// secretHash is the keyed hash SPA keeps of client secrets and federation tokens.
+// secretHash is the keyed hash Keystone keeps of client secrets and federation tokens.
 func (a *App) secretHash(ctx context.Context, v string) string {
 	key, err := a.state.get(ctx)
 	if err != nil {

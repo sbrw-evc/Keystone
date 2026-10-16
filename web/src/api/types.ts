@@ -1,4 +1,4 @@
-// The JSON of SPA's /api/v1 (backend/internal/app). Times are RFC 3339 strings.
+// The JSON of Keystone's /api/v1 (backend/internal/app). Times are RFC 3339 strings.
 
 export interface Method {
   id: string;
@@ -168,7 +168,9 @@ export interface GroupInput {
   external_id?: string;
 }
 
-export type AppType = 'umbrella-monitoring' | 'umbrella-flow' | 'inventory-db' | 'network-control' | 'oidc';
+// The type IDs follow the product names of the Umbrella family; the server maps the IDs used before the rename
+// (umbrella-monitoring, inventory-db, umbrella-flow) to these.
+export type AppType = 'beacon' | 'current' | 'ledger' | 'network-control' | 'oidc';
 
 export interface Role {
   id: string;

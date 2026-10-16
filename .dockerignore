@@ -2,6 +2,7 @@
 **/node_modules
 web/dist
 backend/spa
+backend/keystone
 docs/screens
 .env
 *.log
