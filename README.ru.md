@@ -142,8 +142,9 @@ Microsoft Entra ID, Google, Apple или OpenID Connect второй факто�
 ```
 backend/   сервер на Go: cmd/spa, internal/app (HTTP), store (PostgreSQL), policy, totp, passkey, directory, entra, oidcx, secrets
 web/       веб-приложение на React + TypeScript + Vite (src/pages, src/components, src/i18n)
-scripts/   seed-demo.mjs (демо-данные через API), screenshots.mjs (снимки для README через Playwright)
-docs/      protocol.md, api.md, screens/
+scripts/   seed-demo.mjs (демо-данные через API), screenshots.mjs (снимки для README через Playwright),
+           e2e-monitoring.mjs (сквозная проверка с Umbrella Monitoring)
+docs/      protocol.md, api.md, e2e.md, screens/
 ```
 
 | | |
@@ -155,6 +156,7 @@ docs/      protocol.md, api.md, screens/
 | `make docker`, `make up`, `make down` | образ; SPA и PostgreSQL в Docker Compose |
 | `make seed` | демо-данные в запущенном SPA: люди, группы, четыре приложения Umbrella, парольная политика |
 | `make screenshots` | снимки в `docs/screens` (на пустой базе; Playwright с Chromium) |
+| `make e2e-monitoring` | сквозная проверка запущенного SPA с настоящим Umbrella Monitoring в Chromium: подключение, роли, вход со вторым фактором, синхронизация, отключение ([docs/e2e.md](docs/e2e.md)) |
 
 Веб-приложение следует дизайну Umbrella (токены и элементы управления приложения Umbrella Monitoring, как в
 Inventory DB): оболочка с боковым меню и блоком страницы, карточки, таблицы, «пилюли», сегментированные

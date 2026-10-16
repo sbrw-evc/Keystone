@@ -140,8 +140,9 @@ stops working at once. Details: [docs/protocol.md](docs/protocol.md).
 ```
 backend/   Go server: cmd/spa, internal/app (HTTP), store (PostgreSQL), policy, totp, passkey, directory, entra, oidcx, secrets
 web/       React + TypeScript + Vite web app (src/pages, src/components, src/i18n)
-scripts/   seed-demo.mjs (demo data through the API), screenshots.mjs (README screenshots with Playwright)
-docs/      protocol.md, api.md, screens/
+scripts/   seed-demo.mjs (demo data through the API), screenshots.mjs (README screenshots with Playwright),
+           e2e-monitoring.mjs (end-to-end check with Umbrella Monitoring)
+docs/      protocol.md, api.md, e2e.md, screens/
 ```
 
 | | |
@@ -153,6 +154,7 @@ docs/      protocol.md, api.md, screens/
 | `make docker`, `make up`, `make down` | the image; SPA and PostgreSQL with Docker Compose |
 | `make seed` | demo data in a running SPA: people, groups, the four Umbrella applications, a password policy |
 | `make screenshots` | the screenshots in `docs/screens` (on an empty database; Playwright with Chromium) |
+| `make e2e-monitoring` | end-to-end check of a live SPA with a real Umbrella Monitoring in Chromium: connecting, roles, sign-in with the second factor, synchronisation, disabling ([docs/e2e.md](docs/e2e.md)) |
 
 The web app follows the Umbrella design (the tokens and controls of the Umbrella monitoring app, as in
 Inventory DB): the shell with the sidebar and the page block, cards, tables, pills, segmented controls and dialogs,

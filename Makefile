@@ -3,13 +3,14 @@
 #   make test    Go tests (set SPA_TEST_POSTGRES for the database tests) and the web tests
 #   make run     run SPA locally with the built web app (needs SPA_DATABASE_URL and SPA_MASTER_KEY)
 #   make docker  build the image; make up / make down run it with PostgreSQL (docker compose)
+#   make e2e-monitoring  end-to-end check with a real Umbrella Monitoring (docs/e2e.md)
 
 GO      ?= go
 NPM     ?= npm
 IMAGE   ?= spa:latest
 SPA_URL ?= http://localhost:8080
 
-.PHONY: all build web server test test-go test-web run dev docker up down seed screenshots clean
+.PHONY: all build web server test test-go test-web run dev docker up down seed screenshots e2e-monitoring clean
 
 all: build
 
@@ -56,6 +57,11 @@ seed:
 # README screenshots of a running SPA on an empty database (Playwright with Chromium).
 screenshots:
 	SPA_URL=$(SPA_URL) node scripts/screenshots.mjs
+
+# A live SPA and a real Umbrella Monitoring in Chromium: connect, roles, sign-in, synchronisation, disabling
+# (docs/e2e.md; needs PostgreSQL, psql, Go, Node with Playwright and the Umbrella Monitoring repository).
+e2e-monitoring: web
+	node scripts/e2e-monitoring.mjs
 
 clean:
 	rm -rf web/dist backend/spa
