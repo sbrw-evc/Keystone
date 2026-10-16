@@ -28,6 +28,9 @@ type account struct {
 	Groups              []string      `json:"groups"`
 	Applications        []appLauncher `json:"applications"`
 	SessionMethod       string        `json:"session_method"`
+	// TOTP: two-step verification with an authenticator app is on; TOTPRequired: the password policy requires it.
+	TOTP         bool `json:"totp"`
+	TOTPRequired bool `json:"totp_required"`
 }
 
 type appLauncher struct {
@@ -55,6 +58,11 @@ func (a *App) account(ctx context.Context, u store.User, s store.Session) (accou
 		return acc, err
 	}
 	acc.Passkeys = len(keys)
+	t, err := a.st.TOTPOf(ctx, u.ID)
+	if err != nil {
+		return acc, err
+	}
+	acc.TOTP, acc.TOTPRequired = t.Enabled, a.secondFactorRequired(ctx, u)
 	if acc.Groups, err = a.st.UserGroups(ctx, u.ID); err != nil {
 		return acc, err
 	}

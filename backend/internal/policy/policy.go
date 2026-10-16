@@ -29,6 +29,14 @@ const (
 	PolicyMaxLockoutMinutes  = 1440
 )
 
+// Who must use a second factor (an authenticator app) after a password: nobody (it stays optional), SPA
+// administrators, or everyone who signs in with a password. A passkey sign-in counts as two factors by itself.
+const (
+	SecondFactorOptional = "optional"
+	SecondFactorAdmins   = "admins"
+	SecondFactorEveryone = "everyone"
+)
+
 const (
 	ViolationLength   = "length"
 	ViolationDigits   = "digits"
@@ -60,12 +68,20 @@ type PasswordPolicy struct {
 	// built-in limits only).
 	LockoutAttempts int `json:"lockout_attempts"`
 	LockoutMinutes  int `json:"lockout_minutes"`
+	// SecondFactor: optional, admins or everyone (SecondFactor*) — who must have an authenticator app for the
+	// sign-in with a password (local or directory).
+	SecondFactor string `json:"second_factor"`
+}
+
+// SecondFactorRequired tells whether a person with this SPA role must use a second factor after a password.
+func (p PasswordPolicy) SecondFactorRequired(spaRole string) bool {
+	return p.SecondFactor == SecondFactorEveryone || (p.SecondFactor == SecondFactorAdmins && spaRole == "admin")
 }
 
 func DefaultPasswordPolicy() PasswordPolicy {
 	return PasswordPolicy{MinLength: 12, RequireDigits: true, MinDigits: 1, RequireSpecial: true, MinSpecial: 1,
 		RequireMixedCase: true, Letters: LettersLatin, HistoryCount: 5, BlockCommon: true, LockoutAttempts: 10,
-		LockoutMinutes: 15}
+		LockoutMinutes: 15, SecondFactor: SecondFactorOptional}
 }
 
 func (p PasswordPolicy) Normalize() (PasswordPolicy, error) {
@@ -106,6 +122,13 @@ func (p PasswordPolicy) Normalize() (PasswordPolicy, error) {
 		return p, fmt.Errorf("lockout threshold must be between %d and %d, or 0 for the built-in limits", PolicyMinLockoutAttempts, PolicyMaxLockoutAttempts)
 	} else if p.LockoutMinutes < 1 || p.LockoutMinutes > PolicyMaxLockoutMinutes {
 		return p, fmt.Errorf("lockout duration must be between 1 and %d minutes", PolicyMaxLockoutMinutes)
+	}
+	switch p.SecondFactor {
+	case SecondFactorOptional, SecondFactorAdmins, SecondFactorEveryone:
+	case "":
+		p.SecondFactor = SecondFactorOptional
+	default:
+		return p, errors.New("second factor must be optional, admins or everyone")
 	}
 	need := p.MinDigits + p.MinSpecial
 	if p.RequireMixedCase {

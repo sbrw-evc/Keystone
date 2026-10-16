@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { Fingerprint, KeyRound, LoaderCircle, Monitor, Pencil, Plus, Smartphone, Trash2, Usb } from 'lucide-react';
+import { Fingerprint, KeyRound, LoaderCircle, Monitor, Pencil, Plus, ShieldCheck, Smartphone, Trash2, Usb } from 'lucide-react';
 import { del, describeError, get, patch, post } from '../api/client';
-import type { Passkey, Session, SignInMethods } from '../api/types';
+import type { Passkey, Session, SignInMethods, TotpSetup, TotpState } from '../api/types';
+import { CodeInput, RecoveryCodes, TotpSetupForm } from '../components/totp';
 import { Avatar, Confirm, ErrorNotice, Field, Loading, Modal, PageHead, PasswordInput } from '../components/ui';
 import { formatAgo, formatDate, useT, type TFn } from '../i18n';
 import { useAuth, useLoad } from '../lib/auth';
@@ -83,6 +84,169 @@ function ChangePassword() {
         </button>
       </div>
     </form>
+  );
+}
+
+/** Two-step verification: the authenticator app as the second factor of the password sign-in. */
+function TwoStep({ username }: { username: string }) {
+  const t = useT();
+  const { refresh } = useAuth();
+  const { data, error, reload } = useLoad(() => get<TotpState>('/api/v1/me/totp'));
+  const [setup, setSetup] = useState<{ code: string } | null>(null);
+  const [ask, setAsk] = useState<'disable' | 'codes' | 'replace' | null>(null);
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const changed = () => {
+    reload();
+    refresh();
+  };
+  if (data && !data.available) return null;
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h2>
+            <ShieldCheck size={18} />
+            {t('Two-step verification')}
+          </h2>
+          <p className="muted">{t('After the password SPA asks for a code from an authenticator app on your phone. A passkey sign-in needs no code.')}</p>
+        </div>
+        {data && !data.enabled && (
+          <button type="button" className="btn btn-primary" onClick={() => setSetup({ code: '' })}>
+            <Plus size={16} />
+            {t('Set up')}
+          </button>
+        )}
+      </div>
+      <div className="card-body">
+        <ErrorNotice error={error} />
+        {!data ? (
+          <Loading />
+        ) : data.enabled ? (
+          <div className="row-between">
+            <div className="stack" style={{ gap: 4 }}>
+              <div>
+                <span className="pill pill-ok">{t('On')}</span> {data.enabled_at && <span className="hint">{t('since {date}', { date: formatDate(data.enabled_at, false) })}</span>}
+              </div>
+              <span className={`hint ${data.recovery_codes_left <= 2 ? 'error-text' : ''}`}>{t('Recovery codes left: {n}', { n: data.recovery_codes_left })}</span>
+              {data.required && <span className="hint">{t('The password policy requires two-step verification for your account.')}</span>}
+            </div>
+            <div className="row-end">
+              <button type="button" className="btn btn-sm" onClick={() => setAsk('replace')}>
+                {t('Change the app')}
+              </button>
+              <button type="button" className="btn btn-sm" onClick={() => setAsk('codes')}>
+                {t('New recovery codes')}
+              </button>
+              {!data.required && (
+                <button type="button" className="btn btn-sm btn-danger-soft" onClick={() => setAsk('disable')}>
+                  {t('Turn off')}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {data.required && <div className="notice notice-warning">{t('The password policy requires two-step verification for your account. Set it up now; you will be asked to at the next sign-in anyway.')}</div>}
+            <p className="muted">{t('Two-step verification is off.')}</p>
+          </>
+        )}
+      </div>
+      {setup && (
+        <Modal title={t('Set up two-step verification')} onClose={() => setSetup(null)} width={560}>
+          <TotpSetupForm
+            begin={() => post<TotpSetup>('/api/v1/me/totp/setup', setup.code ? { code: setup.code } : {})}
+            confirm={async (code) => {
+              const res = await post<{ recovery_codes: string[] }>('/api/v1/me/totp/setup/confirm', { code });
+              setSetup(null);
+              setCodes(res.recovery_codes);
+              toast(t('Two-step verification is on'));
+              changed();
+            }}
+            onCancel={() => setSetup(null)}
+            submitLabel={t('Turn on')}
+          />
+        </Modal>
+      )}
+      {ask && (
+        <AskCode
+          title={ask === 'disable' ? t('Turn off two-step verification?') : ask === 'codes' ? t('Make new recovery codes?') : t('Change the authenticator app?')}
+          text={
+            ask === 'disable'
+              ? t('Enter a current code from the app (or a recovery code) to turn it off.')
+              : ask === 'codes'
+                ? t('The old recovery codes stop working. Enter a current code from the app.')
+                : t('Enter a current code from the app you use now; then scan the new QR code.')
+          }
+          confirm={ask === 'disable' ? t('Turn off') : t('Continue')}
+          danger={ask === 'disable'}
+          onClose={() => setAsk(null)}
+          onConfirm={async (code) => {
+            if (ask === 'disable') {
+              await post('/api/v1/me/totp/disable', { code });
+              toast(t('Two-step verification is off'));
+              changed();
+            } else if (ask === 'codes') {
+              const res = await post<{ recovery_codes: string[] }>('/api/v1/me/totp/recovery-codes', { code });
+              setCodes(res.recovery_codes);
+              changed();
+            } else setSetup({ code });
+            setAsk(null);
+          }}
+        />
+      )}
+      {codes && (
+        <Modal
+          title={t('Save your recovery codes')}
+          onClose={() => setCodes(null)}
+          footer={
+            <button type="button" className="btn btn-primary" onClick={() => setCodes(null)}>
+              {t('I have saved the codes')}
+            </button>
+          }
+        >
+          <RecoveryCodes codes={codes} username={username} />
+        </Modal>
+      )}
+    </section>
+  );
+}
+
+/** Asks for a current code before an action on the second factor. */
+function AskCode({ title, text, confirm, danger, onConfirm, onClose }: { title: string; text: string; confirm: string; danger?: boolean; onConfirm: (code: string) => Promise<void>; onClose: () => void }) {
+  const t = useT();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm(code);
+    } catch (err) {
+      setError(err);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={title} onClose={onClose} width={440}>
+      <form className="stack" style={{ gap: 12 }} onSubmit={submit}>
+        <p>{text}</p>
+        <Field label={t('Code from the app')}>
+          <CodeInput value={code} onChange={setCode} recovery />
+        </Field>
+        <ErrorNotice error={error} />
+        <div className="row-end">
+          <button type="button" className="btn" onClick={onClose}>
+            {t('Cancel')}
+          </button>
+          <button type="submit" className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`} disabled={busy || code.trim().length < 6}>
+            {busy && <LoaderCircle size={16} className="spin" />}
+            {confirm}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -364,7 +528,7 @@ export function ProfilePage() {
   const name = account.name || account.username;
   return (
     <>
-      <PageHead title={t('Account and security')} subtitle={t('Your password, passkeys and sessions — for every Umbrella application.')} />
+      <PageHead title={t('Account and security')} subtitle={t('Your password, two-step verification, passkeys and sessions — for every Umbrella application.')} />
       <section className="card card-pad">
         <div className="row-between">
           <div className="cell-main">
@@ -397,6 +561,7 @@ export function ProfilePage() {
       ) : (
         <div className="notice">{t('Your password is managed by {source}.', { source: sourceLabel(account.source, t) })}</div>
       )}
+      <TwoStep username={account.username} />
       <Passkeys enabled={account.passkeys_enabled} />
       <Sessions />
     </>

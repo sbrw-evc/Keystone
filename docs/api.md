@@ -170,6 +170,9 @@ SPA roles: `user` < `auditor` < `admin`. In the tables below *public* needs noth
 | `GET /api/v1/auth/methods` | `{"organization", "methods": [{"id","title"}], "password_policy": {…}}` — what the sign-in page offers | public |
 | `POST /api/v1/auth/password` | `{"username","password","request"?,"return"?}` → `SignedIn` | public |
 | `POST /api/v1/auth/password/change` | `{"ticket"?,"current","new"}` | public with a ticket, else person |
+| `POST /api/v1/auth/totp` | `{"ticket","code"}` — the code of the authenticator app or a recovery code → `SignedIn` | public with a ticket |
+| `POST /api/v1/auth/totp/setup` | `{"ticket"}` → `TotpSetup` — a new secret, when the policy requires a second factor | public with a ticket |
+| `POST /api/v1/auth/totp/setup/confirm` | `{"ticket","code"}` → `SignedIn` with `recovery_codes` | public with a ticket |
 | `POST /api/v1/auth/passkey/begin` | `{}` → `{"ceremony","options":{"publicKey":{…}}}` (WebAuthn request options, binary fields base64url) | public |
 | `POST /api/v1/auth/passkey/finish` | `{"ceremony","credential":<PublicKeyCredential JSON>,"request"?,"return"?}` → `SignedIn` | public |
 | `GET /api/v1/auth/sso/{kind}/start` | `?request=…&return=…` → `302` to the provider (`entra`, `google`, `apple`, `oidc`) | public |
@@ -177,8 +180,9 @@ SPA roles: `user` < `auditor` < `admin`. In the tables below *public* needs noth
 | `POST /api/v1/auth/continue` | `{"request"}` → `{"next"}` — finish an application's sign-in with the current session | person |
 | `POST /api/v1/auth/logout` | ends the session → `{"ok": true}` | public |
 
-`SignedIn` is `{"user": Account, "next": "<URL>"}`: `next` is the application's redirect with the code when
-`request` was given, else the same-site `return` path (or `/`).
+`SignedIn` is `{"user": Account, "next": "<URL>", "recovery_codes"?: [...]}`: `next` is the application's redirect
+with the code when `request` was given, else the same-site `return` path (or `/`); `recovery_codes` come only from
+`/auth/totp/setup/confirm` and are shown once.
 
 `POST /api/v1/auth/password` checks local accounts, then LDAP / Active Directory (unknown or `ldap` accounts).
 Notable errors: `invalid_credentials` (401), `locked` (403), `disabled` (403), `too_many_attempts` (429, 20
@@ -189,6 +193,23 @@ by an administrator, or expired) the answer is `409 password_change_required` wi
 then answers `SignedIn` like a sign-in. Without a ticket the change needs a session and ends the person's other
 sessions (`{"ok": true}`). Errors: `wrong_password`, `password_policy` (with `violations`), `not_local`,
 `ticket_expired`.
+
+**Two-step verification.** After a right password (local or LDAP) the sign-in goes through these steps, each
+answered `409` with `"extra": {"ticket": "…"}` for the next call, until the session starts:
+
+1. `totp_required` — the person has an authenticator app: `POST /auth/totp` with the ticket (5 minutes) and the
+   6-digit code (RFC 6238: HMAC-SHA1, 30 s, ±1 step, each step accepted once) or a recovery code (`xxxxx-xxxxx`,
+   case, spaces and dashes ignored, each once).
+2. `password_change_required` — as above (its ticket remembers that the code was given).
+3. `totp_setup_required` — the password policy (`second_factor`) requires a second factor and the person has none:
+   `POST /auth/totp/setup` with the ticket (15 minutes) shows a new secret, `POST /auth/totp/setup/confirm` turns it
+   on with its first code and answers `SignedIn` with the ten recovery codes.
+
+The session of a sign-in with a code has `mfa: true` and applications get `amr: ["pwd", "otp", "mfa"]` (`["pwd",
+"fed", "otp", "mfa"]` for LDAP). A passkey sign-in never asks for a code. Errors: `wrong_code` (401), `locked` (403:
+wrong codes count like wrong passwords: the lockout of the policy, or 20 in a row when it is off), `too_many_attempts`
+(429, 20 code attempts per address in 5 minutes), `ticket_expired` (400), `totp_no_setup` (400, confirm without a
+started set-up).
 
 Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 
@@ -202,6 +223,11 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 | `POST /api/v1/me/passkeys/finish` | `{"ceremony","credential","name"?}` → `201 Passkey` | person |
 | `PATCH /api/v1/me/passkeys/{id}` | `{"name"}` (1–64 characters) → `{"ok": true}` | person |
 | `DELETE /api/v1/me/passkeys/{id}` | `204` | person |
+| `GET /api/v1/me/totp` | `TotpState` | person |
+| `POST /api/v1/me/totp/setup` | `{"code"?}` → `TotpSetup`; a new secret, pending until confirmed (replacing an app that is on needs a current `code`); `409 totp_not_password` for provider accounts | person |
+| `POST /api/v1/me/totp/setup/confirm` | `{"code"}` → `{"recovery_codes": [...]}` (ten, shown once; an earlier app and its codes stop working) | person |
+| `POST /api/v1/me/totp/disable` | `{"code"}` (a current code or a recovery code) → `{"ok": true}`; `409 totp_required_by_policy`, `409 totp_off` | person |
+| `POST /api/v1/me/totp/recovery-codes` | `{"code"}` → `{"recovery_codes": [...]}`; the old ones stop working | person |
 | `GET /api/v1/me/sessions` | `[Session]` | person |
 | `DELETE /api/v1/me/sessions/{id}` | `204` (the current session is kept) | person |
 
@@ -210,10 +236,16 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 {"id": "usr_…", "username": "jdoe", "name": "John Doe", "email": "…", "source": "local|ldap|entra|google|apple|oidc",
  "spa_role": "user|auditor|admin", "must_change": false, "password_expires_at": "…", "password_expires_soon": false,
  "passkeys": 1, "passkeys_enabled": true, "groups": ["NOC"], "session_method": "pwd|passkey|ldap|entra|…",
+ "totp": true, "totp_required": false,
  "applications": [{"id": "app_…", "name": "Inventory DB", "type": "inventory-db", "url": "https://…", "roles": ["viewer"]}]}
 // Passkey
 {"id": "pk_…", "name": "Work laptop", "kind": "device|phone|security_key", "transports": ["internal"],
  "backup_eligible": true, "backup_state": true, "created_at": "…", "last_used_at": "…"}
+// TotpState — available: the account signs in with a password; required: by the password policy
+{"enabled": true, "enabled_at": "…", "recovery_codes_left": 9, "available": true, "required": false}
+// TotpSetup — the key to type, the otpauth:// address and its QR code (PNG)
+{"secret": "JBSWY3DPEHPK3PXP…", "uri": "otpauth://totp/SPA:jdoe?algorithm=SHA1&digits=6&issuer=SPA&period=30&secret=…",
+ "qr": "data:image/png;base64,…"}
 // Session (id: the first 16 characters of the session hash)
 {"id": "…", "method": "pwd", "mfa": false, "ip": "10.0.0.5", "user_agent": "…", "created_at": "…",
  "last_seen_at": "…", "expires_at": "…", "current": true}
@@ -233,6 +265,7 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 | `GET /api/v1/users/{id}/passkeys` | `[Passkey]` | auditor |
 | `DELETE /api/v1/users/{id}/passkeys` | `?passkey=<id>` one, else all → `204` | admin |
 | `DELETE /api/v1/users/{id}/sessions` | sign the person out everywhere → `204` | admin |
+| `DELETE /api/v1/users/{id}/totp` | turn off the person's two-step verification (a lost phone) → `204`; `409 totp_off` | admin |
 | `GET /api/v1/groups` | `[Group]` | auditor |
 | `POST /api/v1/groups` | `GroupInput` → `201 GroupDetail`; `409 name_taken`, `invalid_dn`, `invalid_group_id` | admin |
 | `GET /api/v1/groups/{id}` | `GroupDetail` | auditor |
@@ -250,7 +283,7 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 {"id": "usr_…", "username": "jdoe", "email": "…", "name": "…", "source": "local", "spa_role": "user",
  "disabled": false, "must_change": true, "locked": false, "locked_until": "…", "last_sign_in_at": "…",
  "password_changed_at": "…", "password_expires_at": "…", "created_at": "…", "updated_at": "…",
- "groups": ["grp_…"], "passkeys": 0, "app_roles": {"app_…": ["viewer"]}}
+ "groups": ["grp_…"], "passkeys": 0, "totp": false, "app_roles": {"app_…": ["viewer"]}}
 // UserInput — groups: the local groups of the person (directory groups follow the directory)
 {"username": "jdoe", "name": "John Doe", "email": "…", "spa_role": "user", "disabled": false, "password": "…", "groups": ["grp_…"]}
 // Group / GroupDetail
@@ -295,10 +328,11 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 Secrets (`bind_password`, `client_secret`, `private_key`) are write-only: an empty value keeps the stored one.
 
 ```jsonc
-// PasswordPolicy (letters: latin | cyrillic | latin_cyrillic | any; 0 turns lifetime, history and lockout off)
+// PasswordPolicy (letters: latin | cyrillic | latin_cyrillic | any; 0 turns lifetime, history and lockout off;
+// second_factor: optional | admins | everyone — who must use an authenticator app after a password)
 {"min_length": 12, "require_digits": true, "min_digits": 1, "require_special": true, "min_special": 1,
  "require_mixed_case": true, "letters": "latin", "max_age_days": 180, "warn_days": 14, "history_count": 5,
- "block_common": true, "lockout_attempts": 5, "lockout_minutes": 15}
+ "block_common": true, "lockout_attempts": 5, "lockout_minutes": 15, "second_factor": "admins"}
 // LDAPConfig (kind: ad | openldap; {username} in user_filter is what the person types)
 {"enabled": true, "kind": "ad", "url": "ldaps://dc.example.com", "start_tls": false, "skip_verify": false,
  "ca_cert": "", "bind_dn": "CN=svc-spa,…", "base_dn": "DC=example,DC=com",
@@ -318,7 +352,8 @@ Secrets (`bind_password`, `client_secret`, `private_key`) are write-only: an emp
 
 `auth.sign_in`, `auth.sign_out`, `auth.sign_in_failed`, `auth.password_changed`, `user.created`, `user.updated`,
 `user.deleted`, `user.password_reset`, `user.unlocked`, `user.locked`, `user.linked`, `user.passkeys_removed`,
-`user.signed_out`, `passkey.added`, `passkey.removed`, `group.saved`, `group.deleted`, `application.connected`,
+`user.signed_out`, `user.totp_reset`, `totp.enabled`, `totp.disabled`, `totp.failed`, `totp.recovery_used`,
+`totp.recovery_renewed`, `passkey.added`, `passkey.removed`, `group.saved`, `group.deleted`, `application.connected`,
 `application.updated`, `application.key_issued`, `application.removed`, `application.roles_published`,
 `oauth.token`, `oauth.denied`, `settings.password_policy`, `settings.general`, `settings.ldap`, `settings.entra`,
 `settings.provider`, `settings.signing_key_rotated`.

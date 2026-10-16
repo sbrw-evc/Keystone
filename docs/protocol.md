@@ -99,7 +99,7 @@ ID token and user info claims:
 | `preferred_username`, `name`, `email`, `email_verified` | |
 | `roles` | the person's roles **in this application** (role IDs of its catalogue), at least one |
 | `groups` | SPA groups of the person (names) |
-| `amr` | how the person signed in: `pwd`, `hwk` + `user` (passkey with user verification), `fed` (directory or provider), plus `mfa` when two factors were used |
+| `amr` | how the person signed in: `pwd`, `hwk` + `user` (passkey with user verification), `fed` (directory or provider), `otp` (the code of an authenticator app after the password), plus `mfa` when two factors were used |
 | `auth_time`, `sid` | |
 | `spa_admin` | `true` for SPA administrators (information only) |
 

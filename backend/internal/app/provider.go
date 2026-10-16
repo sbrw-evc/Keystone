@@ -316,6 +316,9 @@ func amrOf(method string, mfa bool) []string {
 		out = []string{"fed"}
 	}
 	if mfa {
+		if method == "pwd" || method == "ldap" {
+			out = append(out, "otp") // the code of an authenticator app after the password
+		}
 		out = append(out, "mfa")
 	}
 	return out

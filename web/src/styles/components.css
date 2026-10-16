@@ -243,3 +243,19 @@
   .desktop-only { display: none; }
   .brand-sub { display: none; }
 }
+
+/* two-step verification (authenticator app) */
+.row-end { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.code-input { font-family: var(--mono); font-size: 18px; letter-spacing: 0.2em; text-align: center; }
+.totp-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: var(--muted); }
+.totp-qr-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.totp-qr { width: 180px; height: 180px; flex: none; border-radius: var(--radius); background: #fff; padding: 6px; border: 1px solid var(--border); image-rendering: pixelated; }
+.totp-key { font-size: 14px; letter-spacing: 0.04em; }
+.recovery-codes { list-style: none; margin: 0; padding: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px;
+  border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); font-size: 14px; user-select: all; }
+@media (max-width: 520px) {
+  .totp-qr-row { flex-direction: column; align-items: center; }
+}
+.signin-card .totp-qr-row { flex-direction: column; align-items: center; }
+.signin-card .totp-qr-row > .stack { width: 100%; align-items: center; }
+.signin-card .recovery-codes { grid-template-columns: repeat(2, minmax(0, 1fr)); font-size: 13px; }

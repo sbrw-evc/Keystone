@@ -26,8 +26,9 @@ gives them.
 | Sign-in | local passwords under the password policy, LDAP / Active Directory, passkeys (Windows Hello, Touch ID, Face ID, Android, security keys), Microsoft Entra ID, Google, Apple, any OpenID Connect provider |
 | People and groups | local accounts and accounts from directories and providers; SPA groups and directory groups (by DN or Entra object ID, created ahead of their members' first sign-in) |
 | Applications | a three-step wizard connects an application and shows its connection key once; rules *person or group → role* decide who signs in to which application with which roles |
-| Password policy | length, digits, special characters, mixed case, allowed alphabets, common-password blocking, lifetime with an expiry warning, history, lockout |
-| Self-service | change the password (also an expired one, during the sign-in), add, rename and remove passkeys, see and end sessions |
+| Two-step verification | an authenticator app (TOTP, RFC 6238) as the second factor after a password (local or directory), one-time recovery codes; the password policy can require it of administrators or of everyone; a passkey counts as two factors by itself |
+| Password policy | length, digits, special characters, mixed case, allowed alphabets, common-password blocking, lifetime with an expiry warning, history, lockout, a required second factor |
+| Self-service | change the password (also an expired one, during the sign-in), set up two-step verification, add, rename and remove passkeys, see and end sessions |
 | Audit | every sign-in and every change, searchable |
 | Interface | English and Russian, light and dark theme, the Umbrella design |
 
@@ -61,15 +62,18 @@ gives them.
 ![General](docs/screens/general.png)
 ![Audit log](docs/screens/audit.png)
 
-**Account and security** — password, passkeys and sessions of the signed-in person.
+**Account and security** — password, two-step verification, passkeys and sessions of the signed-in person.
 
 ![Profile](docs/screens/profile-light.png)
 ![Profile, dark](docs/screens/profile-dark.png)
+![Setting up two-step verification](docs/screens/profile-totp-setup.png)
 
 **Sign-in** — dark theme, the change of a password at the first sign-in, and the Russian interface.
 
 ![Sign-in, dark](docs/screens/signin-dark.png)
 ![Change of the password](docs/screens/signin-change-password.png)
+![The code of the authenticator app](docs/screens/signin-totp.png)
+![Two-step verification required by the policy, set up during the sign-in](docs/screens/signin-totp-setup-ru.png)
 ![Home in Russian](docs/screens/home-ru.png)
 
 ## Running SPA
@@ -103,6 +107,27 @@ The image (`Dockerfile`) builds the web app with Node, the server with Go, and s
 | `SPA_LISTEN` | listen address (default `:8080`) |
 | `SPA_WEB_DIR` | the built web app (default `./web`; `/app/web` in the image) |
 
+### Two-step verification
+
+People who sign in with a password — local accounts and LDAP / Active Directory accounts — turn on two-step
+verification in **Account and security**: scan the QR code with an authenticator app (Google Authenticator,
+Microsoft Authenticator, 1Password, Aegis, …; or type the key), confirm with a code, and save the ten one-time
+recovery codes shown once. From then on SPA asks for the 6-digit code (30-second steps, one step of clock drift
+either way, each code accepted once) after a right password; a recovery code works instead of a code once. Turning
+it off, changing the app and new recovery codes need a current code.
+
+**Password policy → Second factor** makes it *required for administrators* or *required for everyone*: a person who
+must have it and has none sets it up right after the password, before the sign-in finishes (also after a change of an
+expired password). A passkey sign-in is two-factor by itself and never asks for a code; sign-in through Microsoft
+Entra ID, Google, Apple or OpenID Connect leaves the second factor to that provider. An administrator turns off the
+second factor of a person who lost their phone (**Users → Actions**).
+
+The secret is kept like SPA's other secrets — in OpenBao or sealed with the master key in the database
+(`totp/<user id>`) — and the recovery codes only as keyed hashes (HMAC-SHA256). Wrong codes count like wrong
+passwords (the lockout of the policy, and 20 attempts per address in 5 minutes). Enrolment, turning off, wrong codes
+and used recovery codes go to the audit log. Applications see a password sign-in with a code as `amr: ["pwd", "otp",
+"mfa"]`.
+
 ### Connecting an application
 
 **Applications → Connect an application**: choose the type, enter the address, give groups or people roles, and
@@ -113,7 +138,7 @@ stops working at once. Details: [docs/protocol.md](docs/protocol.md).
 ## Development
 
 ```
-backend/   Go server: cmd/spa, internal/app (HTTP), store (PostgreSQL), policy, passkey, directory, entra, oidcx, secrets
+backend/   Go server: cmd/spa, internal/app (HTTP), store (PostgreSQL), policy, totp, passkey, directory, entra, oidcx, secrets
 web/       React + TypeScript + Vite web app (src/pages, src/components, src/i18n)
 scripts/   seed-demo.mjs (demo data through the API), screenshots.mjs (README screenshots with Playwright)
 docs/      protocol.md, api.md, screens/

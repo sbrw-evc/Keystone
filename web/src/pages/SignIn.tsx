@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AppWindow, Check, Fingerprint, KeyRound, LoaderCircle, X } from 'lucide-react';
+import { AppWindow, Check, Fingerprint, KeyRound, LoaderCircle, ShieldCheck, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiError, describeError, get, post } from '../api/client';
-import type { Account, PasswordPolicy, SignedIn, SignInMethods } from '../api/types';
+import type { Account, PasswordPolicy, SignedIn, SignInMethods, TotpSetup } from '../api/types';
+import { CodeInput, RecoveryCodes, TotpSetupForm } from '../components/totp';
 import { Avatar, Brand, Field, Loading, PasswordInput, Preferences, ProviderMark } from '../components/ui';
 import { useT, type TFn } from '../i18n';
 import { useAuth } from '../lib/auth';
@@ -41,6 +42,28 @@ function go(next: string) {
   window.location.assign(next || '/');
 }
 
+/** The steps after a right password: a new password, the code of the authenticator app, setting one up, the recovery codes. */
+type Step =
+  | { kind: 'change'; ticket: string; expired: boolean }
+  | { kind: 'totp'; ticket: string }
+  | { kind: 'setup'; ticket: string }
+  | { kind: 'codes'; codes: string[]; next: string };
+
+/** The step an answer of the sign-in asks for, if it asks for one. */
+function stepOf(err: unknown): Step | null {
+  if (!(err instanceof ApiError)) return null;
+  const ticket = String(err.extra.ticket ?? '');
+  switch (err.code) {
+    case 'password_change_required':
+      return { kind: 'change', ticket, expired: !!err.extra.expired };
+    case 'totp_required':
+      return { kind: 'totp', ticket };
+    case 'totp_setup_required':
+      return { kind: 'setup', ticket };
+  }
+  return null;
+}
+
 export function SignInPage() {
   const t = useT();
   const navigate = useNavigate();
@@ -55,7 +78,14 @@ export function SignInPage() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(params.get('error'));
-  const [change, setChange] = useState<{ ticket: string; expired: boolean } | null>(null);
+  const [step, setStep] = useState<Step | null>(null);
+  /** Goes on after an answer of a sign-in step: the next step, the recovery codes, or where the sign-in leads. */
+  const finish = (res: SignedIn) => (res.recovery_codes?.length ? setStep({ kind: 'codes', codes: res.recovery_codes, next: res.next }) : go(res.next));
+  const next = (err: unknown) => {
+    const s = stepOf(err);
+    if (s) setStep(s);
+    return !!s;
+  };
   const [another, setAnother] = useState(false);
 
   useEffect(() => {
@@ -92,12 +122,9 @@ export function SignInPage() {
     setBusy('password');
     setError(null);
     try {
-      const res = await post<SignedIn>('/api/v1/auth/password', { username, password, request, return: ret });
-      go(res.next);
+      finish(await post<SignedIn>('/api/v1/auth/password', { username, password, request, return: ret }));
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'password_change_required') {
-        setChange({ ticket: String(err.extra.ticket ?? ''), expired: !!err.extra.expired });
-      } else setError(describeError(err));
+      if (!next(err)) setError(describeError(err));
       setBusy(null);
     }
   };
@@ -138,8 +165,14 @@ export function SignInPage() {
         </div>
         {!info && !error ? (
           <Loading />
-        ) : change ? (
-          <ChangeExpired ticket={change.ticket} expired={change.expired} policy={info!.password_policy} username={username} onCancel={() => setChange(null)} />
+        ) : step?.kind === 'change' ? (
+          <ChangeExpired key={step.ticket} ticket={step.ticket} expired={step.expired} policy={info!.password_policy} username={username} onDone={finish} onNext={next} onCancel={() => setStep(null)} />
+        ) : step?.kind === 'totp' ? (
+          <TotpStep key={step.ticket} ticket={step.ticket} onDone={finish} onNext={next} onCancel={() => setStep(null)} />
+        ) : step?.kind === 'setup' ? (
+          <SetupStep key={step.ticket} ticket={step.ticket} username={username} onDone={finish} onNext={next} onCancel={() => setStep(null)} />
+        ) : step?.kind === 'codes' ? (
+          <CodesStep codes={step.codes} next={step.next} username={username} />
         ) : (
           <>
             <div className="signin-title">
@@ -230,7 +263,9 @@ function ContinueAs({ account, busy, onContinue, onAnother }: { account: Account
 }
 
 /** A password that expired (or was set by an administrator) is changed before the sign-in finishes. */
-function ChangeExpired({ ticket, expired, policy, username, onCancel }: { ticket: string; expired: boolean; policy: PasswordPolicy; username: string; onCancel: () => void }) {
+type StepProps = { ticket: string; onDone: (res: SignedIn) => void; onNext: (err: unknown) => boolean; onCancel: () => void };
+
+function ChangeExpired({ ticket, expired, policy, username, onDone, onNext, onCancel }: StepProps & { expired: boolean; policy: PasswordPolicy; username: string }) {
   const t = useT();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -246,10 +281,9 @@ function ChangeExpired({ ticket, expired, policy, username, onCancel }: { ticket
     setBusy(true);
     setError(null);
     try {
-      const res = await post<SignedIn>('/api/v1/auth/password/change', { ticket, current, new: next });
-      go(res.next);
+      onDone(await post<SignedIn>('/api/v1/auth/password/change', { ticket, current, new: next }));
     } catch (err) {
-      setError(describeError(err));
+      if (!onNext(err)) setError(describeError(err));
       setBusy(false);
     }
   };
@@ -279,6 +313,109 @@ function ChangeExpired({ ticket, expired, policy, username, onCancel }: { ticket
           {t('Back')}
         </button>
       </form>
+    </>
+  );
+}
+
+/** The code of the authenticator app (or a recovery code) after the password. */
+function TotpStep({ ticket, onDone, onNext, onCancel }: StepProps) {
+  const t = useT();
+  const [code, setCode] = useState('');
+  const [recovery, setRecovery] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      onDone(await post<SignedIn>('/api/v1/auth/totp', { ticket, code }));
+    } catch (err) {
+      if (!onNext(err)) setError(describeError(err));
+      setCode('');
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <div className="signin-title">
+        <h1>{t('Two-step verification')}</h1>
+        <p className="muted">{recovery ? t('Enter one of your recovery codes. Each code works once.') : t('Enter the 6-digit code from your authenticator app.')}</p>
+      </div>
+      <form className="signin-form" onSubmit={submit}>
+        {error && (
+          <div className="notice notice-error" role="alert">
+            {error}
+          </div>
+        )}
+        <Field label={recovery ? t('Recovery code') : t('Code from the app')}>
+          <CodeInput key={String(recovery)} value={code} onChange={setCode} recovery={recovery} />
+        </Field>
+        <button className="btn btn-primary btn-block" type="submit" disabled={busy || code.trim().length < 6}>
+          {busy ? <LoaderCircle size={16} className="spin" /> : <ShieldCheck size={16} />}
+          {t('Verify')}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-block"
+          onClick={() => {
+            setRecovery(!recovery);
+            setCode('');
+            setError(null);
+          }}
+        >
+          {recovery ? t('Use the authenticator app') : t('Use a recovery code')}
+        </button>
+        <button type="button" className="btn btn-ghost btn-block" onClick={onCancel}>
+          {t('Back')}
+        </button>
+      </form>
+    </>
+  );
+}
+
+/** The policy requires a second factor and the person has none: set up the authenticator app before going on. */
+function SetupStep({ ticket, username, onDone, onNext, onCancel }: StepProps & { username: string }) {
+  const t = useT();
+  return (
+    <>
+      <div className="signin-title">
+        <h1>{t('Set up two-step verification')}</h1>
+        <p className="muted">{t('The password policy requires a second factor for {user}. Set up an authenticator app to continue.', { user: username })}</p>
+      </div>
+      <div className="signin-form">
+        <TotpSetupForm
+          begin={() => post<TotpSetup>('/api/v1/auth/totp/setup', { ticket })}
+          confirm={async (code) => {
+            try {
+              onDone(await post<SignedIn>('/api/v1/auth/totp/setup/confirm', { ticket, code }));
+            } catch (err) {
+              if (!onNext(err)) throw err;
+            }
+          }}
+          onCancel={onCancel}
+          submitLabel={t('Turn on and sign in')}
+        />
+      </div>
+    </>
+  );
+}
+
+/** The recovery codes of an authenticator app set up during the sign-in, before the sign-in goes on. */
+function CodesStep({ codes, next, username }: { codes: string[]; next: string; username: string }) {
+  const t = useT();
+  return (
+    <>
+      <div className="signin-title">
+        <h1>{t('Save your recovery codes')}</h1>
+        <p className="muted">{t('Two-step verification is on.')}</p>
+      </div>
+      <div className="signin-form">
+        <RecoveryCodes codes={codes} username={username} />
+        <button type="button" className="btn btn-primary btn-block" onClick={() => go(next)}>
+          {t('I have saved the codes, continue')}
+        </button>
+      </div>
     </>
   );
 }

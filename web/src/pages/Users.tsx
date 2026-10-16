@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { KeyRound, Lock, LockOpen, LogOut, Pencil, Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
+import { KeyRound, Lock, LockOpen, LogOut, Pencil, Plus, Search, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react';
 import { del, get, post, put } from '../api/client';
 import type { Group, SPARole, User, UserInput } from '../api/types';
 import { ActionMenu, Avatar, Confirm, Empty, ErrorNotice, Field, Loading, Modal, PageHead, PasswordInput, Switch } from '../components/ui';
@@ -190,6 +190,12 @@ function RowMenu({ user, me, onEdit, onReset, onChanged, onDelete }: { user: Use
               {t('Remove all passkeys')}
             </button>
           )}
+          {user.totp && (
+            <button type="button" className="um-item" onClick={() => (close(), act(() => del(`/api/v1/users/${user.id}/totp`), t('Two-step verification is off')))}>
+              <ShieldOff size={16} />
+              {t('Turn off two-step verification')}
+            </button>
+          )}
           {user.id !== me && (
             <>
               <div className="um-sep" />
@@ -280,6 +286,7 @@ export function UsersPage() {
                   <td>
                     <span className="nowrap">{sourceLabel(u.source, t)}</span>
                     {u.passkeys > 0 && <div className="hint">{t('Passkeys: {n}', { n: u.passkeys })}</div>}
+                    {u.totp && <div className="hint">{t('Two-step verification')}</div>}
                   </td>
                   <td>
                     <span className={`pill ${u.spa_role === 'admin' ? 'pill-accent' : u.spa_role === 'auditor' ? 'pill-info' : ''}`}>{roles[u.spa_role]}</span>

@@ -30,6 +30,8 @@ var (
 type signedIn struct {
 	User account `json:"user"`
 	Next string  `json:"next"`
+	// RecoveryCodes: set up during this sign-in, shown once.
+	RecoveryCodes []string `json:"recovery_codes,omitempty"`
 }
 
 // done finishes a sign-in: the session, then the pending authorization request (if any) or the return path.
@@ -60,13 +62,6 @@ type passwordIn struct {
 	Password string `json:"password"`
 	Request  string `json:"request"`
 	Return   string `json:"return"`
-}
-
-// changeTicket lets a person whose password expired (or must be changed) set a new one without a session.
-type changeTicket struct {
-	UserID  string `json:"u"`
-	Request string `json:"r"`
-	Return  string `json:"t"`
 }
 
 func (a *App) signInPassword(w http.ResponseWriter, r *http.Request) {
@@ -100,25 +95,11 @@ func (a *App) signInPassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if u.Source == "local" {
-		p := a.policy(ctx)
-		if u.MustChange || p.Age(deref(u.PasswordChangedAt, u.CreatedAt), a.now()).Expired {
-			ticket, err := a.state.Seal(ctx, "change", changeTicket{UserID: u.ID, Request: in.Request, Return: in.Return}, 10*time.Minute)
-			if err != nil {
-				writeError(w, err)
-				return
-			}
-			e := fail(http.StatusConflict, "password_change_required", "Choose a new password to continue")
-			e.Extra = map[string]any{"ticket": ticket, "expired": !u.MustChange}
-			writeError(w, e)
-			return
-		}
-	}
 	method := "pwd"
 	if u.Source == "ldap" {
 		method = "ldap"
 	}
-	res, err := a.done(w, r, u, method, false, in.Request, in.Return)
+	res, err := a.proceed(w, r, u, pendingSignIn{UserID: u.ID, Method: method, Request: in.Request, Return: in.Return})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -270,7 +251,7 @@ func (a *App) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var u store.User
-	var ticket changeTicket
+	var ticket pendingSignIn // a person whose password expired (or must be changed) sets a new one without a session
 	if in.Ticket != "" {
 		if err := a.state.Open(ctx, "change", in.Ticket, &ticket); err != nil {
 			writeError(w, fail(http.StatusBadRequest, "ticket_expired", "Too much time has passed. Sign in again"))
@@ -307,7 +288,7 @@ func (a *App) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u, _ = a.st.UserByID(ctx, u.ID)
-	res, err := a.done(w, r, u, "pwd", false, ticket.Request, ticket.Return)
+	res, err := a.proceed(w, r, u, ticket)
 	if err != nil {
 		writeError(w, err)
 		return

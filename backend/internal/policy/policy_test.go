@@ -108,3 +108,20 @@ func TestPolicyMaxAge(t *testing.T) {
 		t.Fatal("unknown change time must not expire the password")
 	}
 }
+
+func TestSecondFactor(t *testing.T) {
+	p, err := PasswordPolicy{MinLength: 8}.Normalize()
+	if err != nil || p.SecondFactor != SecondFactorOptional || p.SecondFactorRequired("admin") {
+		t.Fatalf("default: %+v %v", p, err)
+	}
+	if _, err := (PasswordPolicy{MinLength: 8, SecondFactor: "sometimes"}).Normalize(); err == nil {
+		t.Fatal("an unknown value was accepted")
+	}
+	admins := PasswordPolicy{SecondFactor: SecondFactorAdmins}
+	if !admins.SecondFactorRequired("admin") || admins.SecondFactorRequired("auditor") || admins.SecondFactorRequired("user") {
+		t.Fatal("admins")
+	}
+	if !(PasswordPolicy{SecondFactor: SecondFactorEveryone}).SecondFactorRequired("user") {
+		t.Fatal("everyone")
+	}
+}

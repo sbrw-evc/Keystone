@@ -19,6 +19,8 @@ export interface PasswordPolicy {
   block_common: boolean;
   lockout_attempts: number;
   lockout_minutes: number;
+  /** Who must use an authenticator app after a password. */
+  second_factor: 'optional' | 'admins' | 'everyone';
 }
 
 export interface SignInMethods {
@@ -52,11 +54,29 @@ export interface Account {
   groups: string[];
   applications: AppLauncher[];
   session_method: string;
+  totp: boolean;
+  totp_required: boolean;
 }
 
 export interface SignedIn {
   user: Account;
   next: string;
+  /** Recovery codes of an authenticator app set up during this sign-in (shown once). */
+  recovery_codes?: string[];
+}
+
+export interface TotpState {
+  enabled: boolean;
+  enabled_at?: string;
+  recovery_codes_left: number;
+  available: boolean;
+  required: boolean;
+}
+
+export interface TotpSetup {
+  secret: string;
+  uri: string;
+  qr: string;
 }
 
 export interface Passkey {
@@ -110,6 +130,7 @@ export interface User {
   updated_at: string;
   groups: string[];
   passkeys: number;
+  totp: boolean;
   locked: boolean;
   app_roles: Record<string, string[]>;
   password_expires_at?: string;

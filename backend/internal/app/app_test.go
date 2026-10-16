@@ -354,6 +354,16 @@ func TestPasskeys(t *testing.T) {
 	if signed.User["username"] != "admin" || signed.User["session_method"] != "passkey" {
 		t.Fatalf("signed in as %v", signed.User)
 	}
+
+	// a passkey counts as two factors: a policy that requires a second factor asks for no code after it
+	if code := h.call(admin, "PUT", "/api/v1/settings/password-policy", map[string]any{"min_length": 12, "letters": "any", "second_factor": "everyone"}, nil); code != 200 {
+		t.Fatalf("policy: %d", code)
+	}
+	b = h.browser()
+	h.call(b, "POST", "/api/v1/auth/passkey/begin", map[string]any{}, &started)
+	if code := h.call(b, "POST", "/api/v1/auth/passkey/finish", map[string]any{"ceremony": started.Ceremony, "credential": auth.Get(started.Options)}, &signed); code != 200 {
+		t.Fatalf("passkey under a second-factor policy: %d", code)
+	}
 }
 
 func TestDirectorySignInAndGroupRoles(t *testing.T) {
@@ -402,5 +412,13 @@ func TestDirectorySignInAndGroupRoles(t *testing.T) {
 	var e apiErr
 	if code := h.call(h.browser(), "POST", "/api/v1/auth/password", map[string]string{"username": "anna", "password": "wrong"}, &e); code != http.StatusUnauthorized {
 		t.Fatalf("wrong directory password: %d %+v", code, e)
+	}
+
+	// a directory account sets up the second factor too when the policy requires it of everyone
+	if code := h.call(admin, "PUT", "/api/v1/settings/password-policy", map[string]any{"min_length": 12, "letters": "any", "second_factor": "everyone"}, nil); code != 200 {
+		t.Fatalf("policy: %d", code)
+	}
+	if code := h.call(h.browser(), "POST", "/api/v1/auth/password", map[string]string{"username": "anna", "password": "anna-pass-1"}, &e); code != http.StatusConflict || e.Code != "totp_setup_required" {
+		t.Fatalf("directory sign-in under the policy: %d %+v", code, e)
 	}
 }

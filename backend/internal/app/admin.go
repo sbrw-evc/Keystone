@@ -27,6 +27,7 @@ type userView struct {
 	store.User
 	Groups    []string            `json:"groups"`
 	Passkeys  int                 `json:"passkeys"`
+	TOTP      bool                `json:"totp"`
 	Locked    bool                `json:"locked"`
 	AppRoles  map[string][]string `json:"app_roles"`
 	ExpiresAt string              `json:"password_expires_at,omitempty"`
@@ -43,6 +44,11 @@ func (a *App) userView(ctx context.Context, u store.User, p policy.PasswordPolic
 		return v, err
 	}
 	v.Passkeys = len(keys)
+	t, err := a.st.TOTPOf(ctx, u.ID)
+	if err != nil {
+		return v, err
+	}
+	v.TOTP = t.Enabled
 	if v.AppRoles, err = a.st.UserAppRoles(ctx, u.ID); err != nil {
 		return v, err
 	}
@@ -275,6 +281,7 @@ func (a *App) deleteUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	a.sec.Delete(ctx, secretTOTP(u.ID)) //nolint:errcheck // the secret of the authenticator app, if any
 	a.st.Audit(ctx, actor(r), "user.deleted", u.Username, a.clientIP(r), nil)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -666,7 +673,7 @@ func (a *App) putPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.st.Audit(ctx, actor(r), "settings.password_policy", "", a.clientIP(r), map[string]any{"min_length": p.MinLength,
-		"max_age_days": p.MaxAgeDays, "history": p.HistoryCount, "lockout": p.LockoutAttempts})
+		"max_age_days": p.MaxAgeDays, "history": p.HistoryCount, "lockout": p.LockoutAttempts, "second_factor": p.SecondFactor})
 	a.getPolicy(w, r)
 }
 

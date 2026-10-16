@@ -159,9 +159,10 @@ func decodeKey(s string) (*rsa.PrivateKey, error) {
 const statePath = "oidc/state"
 
 type stateKey struct {
-	sec secrets.Store
-	mu  sync.Mutex
-	key []byte
+	sec  secrets.Store
+	path string // where the key is kept; statePath when empty
+	mu   sync.Mutex
+	key  []byte
 }
 
 func (s *stateKey) get(ctx context.Context) ([]byte, error) {
@@ -170,10 +171,14 @@ func (s *stateKey) get(ctx context.Context) ([]byte, error) {
 	if s.key != nil {
 		return s.key, nil
 	}
-	m, err := s.sec.Get(ctx, statePath)
+	path := s.path
+	if path == "" {
+		path = statePath
+	}
+	m, err := s.sec.Get(ctx, path)
 	if errors.Is(err, secrets.ErrNotFound) {
 		m = map[string]string{"key": randomToken(48)}
-		if err := s.sec.Put(ctx, statePath, m); err != nil {
+		if err := s.sec.Put(ctx, path, m); err != nil {
 			return nil, err
 		}
 	} else if err != nil {
@@ -204,6 +209,17 @@ func (s *stateKey) Seal(ctx context.Context, purpose string, v any, ttl time.Dur
 }
 
 var errState = errors.New("expired or changed")
+
+// Hash is the keyed hash (HMAC-SHA256) of v, for values kept only as hashes (recovery codes).
+func (s *stateKey) Hash(ctx context.Context, v string) (string, error) {
+	key, err := s.get(ctx)
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(v))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
+}
 
 // Open checks and decodes a value sealed for purpose.
 func (s *stateKey) Open(ctx context.Context, purpose, token string, out any) error {

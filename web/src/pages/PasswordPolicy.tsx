@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { get, put } from '../api/client';
 import type { PasswordPolicy, PolicySummary } from '../api/types';
-import { ErrorNotice, Field, Loading, PageHead, Switch } from '../components/ui';
+import { ErrorNotice, Field, Loading, PageHead, Segmented, Switch } from '../components/ui';
 import { useT } from '../i18n';
 import { isAdmin, useAuth, useLoad } from '../lib/auth';
 import { toast } from '../lib/toast';
@@ -136,6 +136,37 @@ export function PasswordPolicyPage() {
           <Field label={t('Lock for')}>
             <Num value={p.lockout_minutes} min={1} max={1440} disabled={ro || p.lockout_attempts === 0} onChange={(n) => set({ lockout_minutes: n })} suffix={t('minutes')} />
           </Field>
+        </div>
+      </section>
+      <section className="card">
+        <div className="card-head">
+          <div>
+            <h2>{t('Second factor')}</h2>
+            <p className="muted">{t('Who must confirm a password sign-in (local or directory) with a code from an authenticator app. A passkey sign-in counts as two factors by itself.')}</p>
+          </div>
+        </div>
+        <div className="card-body stack" style={{ gap: 10 }}>
+          <div>
+            {ro ? (
+              <span className="pill">{{ optional: t('Optional'), admins: t('Required for administrators'), everyone: t('Required for everyone') }[p.second_factor ?? 'optional']}</span>
+            ) : (
+              <Segmented
+                label={t('Second factor')}
+                value={p.second_factor ?? 'optional'}
+                onChange={(v) => set({ second_factor: v })}
+                options={[
+                  { value: 'optional', label: t('Optional') },
+                  { value: 'admins', label: t('Required for administrators') },
+                  { value: 'everyone', label: t('Required for everyone') },
+                ]}
+              />
+            )}
+          </div>
+          <p className="hint">
+            {p.second_factor === 'optional'
+              ? t('People may turn on two-step verification in their profile.')
+              : t('A person who must have it and has none sets it up right after the password, before the sign-in finishes.')}
+          </p>
         </div>
       </section>
       <section className="card">

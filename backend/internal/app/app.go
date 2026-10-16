@@ -41,6 +41,7 @@ type App struct {
 	ceremonies *passkey.Ceremonies
 	keys       *signingKeys
 	state      *stateKey
+	recovery   *stateKey
 	limiter    *limiter
 	now        func() time.Time
 
@@ -56,7 +57,7 @@ func New(cfg Config, st *store.Store, sec secrets.Store) *App {
 	c := passkey.NewCeremonies()
 	c.Keeper = store.Ceremonies{S: st}
 	return &App{cfg: cfg, st: st, sec: sec, ceremonies: c, keys: &signingKeys{sec: sec},
-		state: &stateKey{sec: sec}, limiter: newLimiter(), now: time.Now, syncing: map[string]bool{}}
+		state: &stateKey{sec: sec}, recovery: &stateKey{sec: sec, path: recoveryKeyPath}, limiter: newLimiter(), now: time.Now, syncing: map[string]bool{}}
 }
 
 // Issuer is the address of SPA: the configured public address, else the address of the request.
