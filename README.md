@@ -20,6 +20,8 @@ gives them.
   federation API, user synchronisation).
 - [docs/api.md](docs/api.md) — the HTTP API: the OpenID Connect provider, the federation API and the `/api/v1`
   API of the web app.
+- [docs/processes.md](docs/processes.md) — the business processes inside Keystone; between the applications of the
+  family: [family.md](https://github.com/sbrw-evc/current/blob/HEAD/docs/family.md).
 
 The other members of the family: [Beacon](https://github.com/sbrw-evc/beacon) (alerts from monitoring systems become
 incidents, paging and response; formerly Umbrella Monitoring), [Ledger](https://github.com/sbrw-evc/ledger)

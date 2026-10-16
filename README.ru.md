@@ -20,6 +20,8 @@ Keystone, читают своих пользователей и их роли ч
 - [docs/protocol.md](docs/protocol.md) — как приложения подключаются к Keystone (OpenID Connect, ключ подключения, API
   федерации, синхронизация пользователей).
 - [docs/api.md](docs/api.md) — HTTP API: провайдер OpenID Connect, API федерации и API `/api/v1` веб-приложения.
+- [docs/processes.md](docs/processes.md) — бизнес-процессы внутри Keystone (на английском); между приложениями
+  семейства: [family.md](https://github.com/sbrw-evc/current/blob/HEAD/docs/family.md).
 
 Другие приложения семейства: [Beacon](https://github.com/sbrw-evc/beacon) (оповещения систем мониторинга превращаются
 в инциденты, вызовы дежурных и реагирование; раньше Umbrella Monitoring), [Ledger](https://github.com/sbrw-evc/ledger)
