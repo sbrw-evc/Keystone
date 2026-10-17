@@ -1,7 +1,7 @@
 # Keystone: business processes
 
 Keystone is where people of the Umbrella family sign in and where their access is decided. How the applications use
-it is in [family.md](https://github.com/sbrw-evc/current/blob/HEAD/docs/family.md) and the wire protocol in [protocol.md](protocol.md); this page is about the
+it is in [family.md](https://onedev.evcsbrw.ru/Monitoring/Current/~files/main/docs/family.md) and the wire protocol in [protocol.md](protocol.md); this page is about the
 processes inside Keystone.
 
 ## Roles in the processes

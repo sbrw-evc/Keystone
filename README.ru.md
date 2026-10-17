@@ -21,11 +21,11 @@ Keystone, читают своих пользователей и их роли ч
   федерации, синхронизация пользователей).
 - [docs/api.md](docs/api.md) — HTTP API: провайдер OpenID Connect, API федерации и API `/api/v1` веб-приложения.
 - [docs/processes.md](docs/processes.md) — бизнес-процессы внутри Keystone (на английском); между приложениями
-  семейства: [family.md](https://github.com/sbrw-evc/current/blob/HEAD/docs/family.md).
+  семейства: [family.md](https://onedev.evcsbrw.ru/Monitoring/Current/~files/main/docs/family.md).
 
-Другие приложения семейства: [Beacon](https://github.com/sbrw-evc/beacon) (оповещения систем мониторинга превращаются
-в инциденты, вызовы дежурных и реагирование; раньше Umbrella Monitoring), [Ledger](https://github.com/sbrw-evc/ledger)
-(инвентарь — DCIM/IPAM — и табличные базы данных; раньше Inventory DB), [Current](https://github.com/sbrw-evc/current)
+Другие приложения семейства: [Beacon](https://onedev.evcsbrw.ru/Monitoring/Beacon) (оповещения систем мониторинга превращаются
+в инциденты, вызовы дежурных и реагирование; раньше Umbrella Monitoring), [Ledger](https://onedev.evcsbrw.ru/Monitoring/Ledger)
+(инвентарь — DCIM/IPAM — и табличные базы данных; раньше Inventory DB), [Current](https://onedev.evcsbrw.ru/Monitoring/Current)
 (сетевой трафик и сетевые устройства; раньше Umbrella Flow) и Network Control.
 
 ## Возможности
