@@ -613,3 +613,10 @@ func (c Ceremonies) Take(id string) ([]byte, bool) {
 	err := c.S.DB.QueryRow(context.Background(), `DELETE FROM passkey_ceremonies WHERE id = $1 AND expires_at > now() RETURNING data`, id).Scan(&data)
 	return data, err == nil
 }
+
+// AddAssignment gives a subject a role in an application (nothing when it has it already).
+func (s *Store) AddAssignment(ctx context.Context, appID, subjectType, subjectID, role string) error {
+	_, err := s.DB.Exec(ctx, `INSERT INTO role_assignments (app_id, subject_type, subject_id, role) VALUES ($1, $2, $3, $4)
+		ON CONFLICT DO NOTHING`, appID, subjectType, subjectID, role)
+	return err
+}

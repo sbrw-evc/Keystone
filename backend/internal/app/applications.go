@@ -154,6 +154,9 @@ type ApplicationView struct {
 }
 
 func (a *App) appView(ctx context.Context, app store.Application) (ApplicationView, error) {
+	if !a.importOpen(app) {
+		app.UserImportUntil = nil
+	}
 	asg, err := a.st.Assignments(ctx, app.ID)
 	if err != nil {
 		return ApplicationView{}, err
@@ -292,6 +295,7 @@ func (a *App) fedConfig(w http.ResponseWriter, r *http.Request, app store.Applic
 		"methods":      a.methods(r.Context(), r),
 		"sign_out_url": iss + "/oauth2/logout",
 		"account_url":  iss + "/profile",
+		"user_import":  a.importOpen(app),
 	})
 }
 

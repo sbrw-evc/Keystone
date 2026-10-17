@@ -33,6 +33,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/spa/v1/config", a.federated(a.fedConfig))
 	mux.HandleFunc("GET /api/spa/v1/users", a.federated(a.fedUsers))
 	mux.HandleFunc("PUT /api/spa/v1/roles", a.federated(a.fedRoles))
+	mux.HandleFunc("POST /api/spa/v1/users/import", a.federated(a.fedImport))
 
 	// sign-in
 	mux.HandleFunc("GET /api/v1/auth/methods", a.signInMethods)
@@ -89,6 +90,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/applications", write(a.createApp))
 	mux.HandleFunc("PUT /api/v1/applications/{id}", write(a.updateApp))
 	mux.HandleFunc("POST /api/v1/applications/{id}/key", write(a.reissueKey))
+	mux.HandleFunc("POST /api/v1/applications/{id}/user-import", write(a.allowUserImport))
 	mux.HandleFunc("DELETE /api/v1/applications/{id}", write(a.deleteApp))
 	mux.HandleFunc("GET /api/v1/settings/password-policy", read(a.getPolicy))
 	mux.HandleFunc("PUT /api/v1/settings/password-policy", write(a.putPolicy))

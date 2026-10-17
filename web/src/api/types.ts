@@ -199,6 +199,7 @@ export interface Application {
   default_role: string;
   roles_published?: string;
   last_sync_at?: string;
+  user_import_until?: string;
   created_at: string;
   updated_at: string;
   users: number;
