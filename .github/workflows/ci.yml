@@ -72,6 +72,7 @@ jobs:
       - name: compose config
         run: |
           cp .env.example .env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci/' .env
           docker compose config -q
       - name: build image
         run: docker build -t keystone:ci .
