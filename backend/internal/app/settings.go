@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,12 +30,136 @@ const (
 
 func secretProvider(kind string) string { return "providers/" + kind }
 
-// General: how Keystone presents itself.
+// General: how Keystone presents itself and where it is.
 type General struct {
 	// Organization is shown on the sign-in page.
 	Organization string `json:"organization"`
 	// AllowLocal: local accounts (username + password) may sign in. Turn off when everyone comes from a directory.
 	AllowLocal bool `json:"allow_local"`
+	// PublicURL is the address of Keystone and its OpenID Connect issuer, e.g. https://keystone.example.com; empty:
+	// the address of the request.
+	PublicURL string `json:"public_url"`
+	// TrustedProxies are the networks (or addresses) of reverse proxies whose X-Forwarded-For / -Host are believed.
+	TrustedProxies []string `json:"trusted_proxies"`
+	// SessionHours is how long a Keystone session lasts.
+	SessionHours int `json:"session_hours"`
+}
+
+// generalTTL: other replicas see a change of the general settings within this time.
+const generalTTL = 5 * time.Second
+
+func (g *General) defaults() {
+	if g.SessionHours <= 0 {
+		g.SessionHours = 12
+	}
+	if g.TrustedProxies == nil {
+		g.TrustedProxies = []string{}
+	}
+}
+
+// normalizePublicURL checks a public address: http(s), a host, no query; the trailing slash goes.
+func normalizePublicURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+		return "", fail(http.StatusBadRequest, "invalid_public_url", "Enter the address of Keystone, such as https://keystone.example.com")
+	}
+	return strings.TrimRight(u.Scheme+"://"+u.Host+u.Path, "/"), nil
+}
+
+// parseNetworks turns addresses and networks (10.0.0.0/8, 192.168.0.100) into networks.
+func parseNetworks(list []string) ([]*net.IPNet, []string, error) {
+	nets := []*net.IPNet{}
+	clean := []string{}
+	for _, n := range list {
+		n = strings.TrimSpace(n)
+		if n == "" {
+			continue
+		}
+		c := n
+		if !strings.Contains(c, "/") {
+			if strings.Contains(c, ":") {
+				c += "/128"
+			} else {
+				c += "/32"
+			}
+		}
+		_, ipn, err := net.ParseCIDR(c)
+		if err != nil {
+			return nil, nil, fail(http.StatusBadRequest, "invalid_proxy", "Not an address or a network: "+n)
+		}
+		nets = append(nets, ipn)
+		clean = append(clean, n)
+	}
+	return nets, clean, nil
+}
+
+// normalize checks the general settings.
+func (g General) normalize() (General, error) {
+	g.Organization = strings.TrimSpace(g.Organization)
+	var err error
+	if g.PublicURL, err = normalizePublicURL(g.PublicURL); err != nil {
+		return g, err
+	}
+	if _, g.TrustedProxies, err = parseNetworks(g.TrustedProxies); err != nil {
+		return g, err
+	}
+	if g.SessionHours < 0 || g.SessionHours > 24*30 {
+		return g, fail(http.StatusBadRequest, "invalid_session_hours", "A session lasts from 1 to 720 hours")
+	}
+	g.defaults()
+	return g, nil
+}
+
+// general reads the general settings, kept for generalTTL (every request needs them: the issuer, the proxies).
+func (a *App) general(ctx context.Context) General {
+	a.genMu.Lock()
+	if !a.genAt.IsZero() && time.Since(a.genAt) < generalTTL {
+		g := a.gen
+		a.genMu.Unlock()
+		return g
+	}
+	a.genMu.Unlock()
+	g := General{AllowLocal: true}
+	if _, err := a.st.Setting(ctx, keyGeneral, &g); err != nil {
+		a.genMu.Lock()
+		defer a.genMu.Unlock()
+		if !a.genAt.IsZero() {
+			return a.gen // the database is away for a moment: the last known settings
+		}
+		g.defaults()
+		return g
+	}
+	g.defaults()
+	nets, _, _ := parseNetworks(g.TrustedProxies)
+	a.genMu.Lock()
+	a.gen, a.gennet, a.genAt = g, nets, time.Now()
+	a.genMu.Unlock()
+	return g
+}
+
+// UpdateGeneral changes the general settings (the setup wizard, the import of the settings of an older version).
+func (a *App) UpdateGeneral(ctx context.Context, change func(*General)) (General, error) {
+	a.genMu.Lock()
+	a.genAt = time.Time{}
+	a.genMu.Unlock()
+	g := a.general(ctx)
+	g.TrustedProxies = append([]string{}, g.TrustedProxies...)
+	change(&g)
+	g, err := g.normalize()
+	if err != nil {
+		return g, err
+	}
+	if err := a.st.PutSetting(ctx, keyGeneral, g); err != nil {
+		return g, err
+	}
+	a.genMu.Lock()
+	a.genAt = time.Time{}
+	a.genMu.Unlock()
+	return g, nil
 }
 
 type PasskeySettings struct {
@@ -101,12 +226,6 @@ func (a *App) policy(ctx context.Context) policy.PasswordPolicy {
 	p := policy.DefaultPasswordPolicy()
 	a.st.Setting(ctx, keyPolicy, &p) //nolint:errcheck
 	return p
-}
-
-func (a *App) general(ctx context.Context) General {
-	g := General{AllowLocal: true}
-	a.st.Setting(ctx, keyGeneral, &g) //nolint:errcheck
-	return g
 }
 
 func (a *App) passkeys(ctx context.Context) PasskeySettings {

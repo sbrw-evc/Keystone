@@ -78,8 +78,11 @@ func newHarness(t *testing.T) *harness {
 	// localhost: passkeys need https or localhost
 	h.url = strings.Replace(h.srv.URL, "127.0.0.1", "localhost", 1)
 	h.sec = secrets.NewMemory()
-	a = app.New(app.Config{PublicURL: h.url}, st, h.sec)
+	a = app.New(app.Config{}, st, h.sec)
 	h.a = a
+	if _, err := a.UpdateGeneral(ctx, func(g *app.General) { g.PublicURL = h.url }); err != nil {
+		t.Fatal(err)
+	}
 	if err := a.Bootstrap(ctx, "admin", "Initial-Passw0rd!"); err != nil {
 		t.Fatal(err)
 	}

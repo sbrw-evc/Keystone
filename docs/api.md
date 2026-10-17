@@ -348,8 +348,8 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 | --- | --- | --- |
 | `GET /api/v1/settings/password-policy` | `{"policy": PasswordPolicy, "local_users", "expired_users", "expiring_users", "locked_users"}` | auditor |
 | `PUT /api/v1/settings/password-policy` | `PasswordPolicy` → the same as GET; `invalid_policy` | admin |
-| `GET /api/v1/settings/general` | `{"general": {"organization","allow_local"}, "passkeys": {"enabled","rp_id"}, "issuer", "secrets": "database|openbao", "public_url_set"}` | auditor |
-| `PUT /api/v1/settings/general` | `{"general", "passkeys"}` → the same as GET; `passkey_domain` | admin |
+| `GET /api/v1/settings/general` | `{"general": {"organization","allow_local","public_url","trusted_proxies":[…],"session_hours"}, "passkeys": {"enabled","rp_id"}, "issuer", "secrets": "openbao", "public_url_set", "proxy_hint"?}` — `proxy_hint`: the address of a proxy the request came through that is not trusted yet | auditor |
+| `PUT /api/v1/settings/general` | `{"general", "passkeys"}` → the same as GET; `public_url`, `trusted_proxies` (addresses or networks) and `session_hours` (1–720) apply at once, left out they are kept; `invalid_public_url`, `invalid_proxy`, `invalid_session_hours`, `passkey_domain` | admin |
 | `POST /api/v1/settings/signing-key/rotate` | new ID token signing key; the previous stays in the JWKS → `{"ok": true}` | admin |
 | `GET /api/v1/settings/ldap` | `{"config": LDAPConfig, "bind_password_set"}` | auditor |
 | `PUT /api/v1/settings/ldap` | `{"config", "bind_password"?}` → the same as GET; `invalid_directory` | admin |

@@ -237,11 +237,12 @@ export interface PolicySummary {
 }
 
 export interface General {
-  general: { organization: string; allow_local: boolean };
+  general: { organization: string; allow_local: boolean; public_url: string; trusted_proxies: string[]; session_hours: number };
   passkeys: { enabled: boolean; rp_id: string };
   issuer: string;
   secrets: string;
   public_url_set: boolean;
+  proxy_hint?: string;
 }
 
 export interface LDAPConfig {

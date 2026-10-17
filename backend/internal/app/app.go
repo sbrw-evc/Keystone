@@ -22,14 +22,9 @@ import (
 	"github.com/sbrw-evc/keystone/internal/store"
 )
 
-// Config is the deployment configuration (environment variables, cmd/keystone).
+// Config is what the process gives Keystone at start (cmd/keystone). Everything else — the public address, trusted
+// proxies, the session lifetime — is in the settings (General), changed in the web app without a restart.
 type Config struct {
-	// PublicURL is the address of Keystone and its OpenID Connect issuer, e.g. https://keystone.example.com.
-	PublicURL string
-	// SessionHours is how long a Keystone session lasts.
-	SessionHours int
-	// TrustedProxies are the networks whose X-Forwarded-For is believed.
-	TrustedProxies []*net.IPNet
 	// WebDir holds the built web app.
 	WebDir string
 }
@@ -47,23 +42,33 @@ type App struct {
 
 	mu      sync.Mutex
 	syncing map[string]bool
+
+	genMu  sync.Mutex
+	gen    General
+	genAt  time.Time
+	gennet []*net.IPNet
 }
 
 func New(cfg Config, st *store.Store, sec secrets.Store) *App {
-	if cfg.SessionHours <= 0 {
-		cfg.SessionHours = 12
-	}
-	cfg.PublicURL = strings.TrimRight(cfg.PublicURL, "/")
 	c := passkey.NewCeremonies()
 	c.Keeper = store.Ceremonies{S: st}
 	return &App{cfg: cfg, st: st, sec: sec, ceremonies: c, keys: &signingKeys{sec: sec},
 		state: &stateKey{sec: sec}, recovery: &stateKey{sec: sec, path: recoveryKeyPath}, limiter: newLimiter(), now: time.Now, syncing: map[string]bool{}}
 }
 
+// publicURL is the configured address of Keystone (General.PublicURL), empty when not set.
+func (a *App) publicURL(r *http.Request) string {
+	ctx := context.Background()
+	if r != nil {
+		ctx = r.Context()
+	}
+	return a.general(ctx).PublicURL
+}
+
 // Issuer is the address of Keystone: the configured public address, else the address of the request.
 func (a *App) Issuer(r *http.Request) string {
-	if a.cfg.PublicURL != "" {
-		return a.cfg.PublicURL
+	if u := a.publicURL(r); u != "" {
+		return u
 	}
 	if r == nil {
 		return ""
@@ -85,7 +90,11 @@ func (a *App) trusted(r *http.Request) bool {
 		host = r.RemoteAddr
 	}
 	ip := net.ParseIP(host)
-	for _, n := range a.cfg.TrustedProxies {
+	a.general(r.Context())
+	a.genMu.Lock()
+	nets := a.gennet
+	a.genMu.Unlock()
+	for _, n := range nets {
 		if ip != nil && n.Contains(ip) {
 			return true
 		}
@@ -211,7 +220,7 @@ func (a *App) startSession(w http.ResponseWriter, r *http.Request, u store.User,
 	ctx := r.Context()
 	raw := randomToken(32)
 	s := store.Session{ID: hashToken(raw), UserID: u.ID, Method: method, MFA: mfa, IP: a.clientIP(r),
-		UserAgent: truncate(r.UserAgent(), 256), ExpiresAt: a.now().Add(time.Duration(a.cfg.SessionHours) * time.Hour)}
+		UserAgent: truncate(r.UserAgent(), 256), ExpiresAt: a.now().Add(time.Duration(a.general(ctx).SessionHours) * time.Hour)}
 	if err := a.st.CreateSession(ctx, s); err != nil {
 		return s, err
 	}
@@ -233,8 +242,8 @@ func (a *App) endSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) secure(r *http.Request) bool {
-	if a.cfg.PublicURL != "" {
-		return strings.HasPrefix(a.cfg.PublicURL, "https://")
+	if u := a.publicURL(r); u != "" {
+		return strings.HasPrefix(u, "https://")
 	}
 	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }

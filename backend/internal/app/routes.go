@@ -236,7 +236,7 @@ func (a *App) onboarding(w http.ResponseWriter, r *http.Request) {
 	pk := a.passkeys(ctx)
 	prov := a.providers(ctx)
 	steps := []step{
-		{ID: "public_url", Done: a.cfg.PublicURL != "", Path: "/settings/general"},
+		{ID: "public_url", Done: a.general(ctx).PublicURL != "", Path: "/settings/general"},
 		{ID: "policy", Done: p.BlockCommon && p.HistoryCount > 0 && p.LockoutAttempts > 0, Path: "/settings/password-policy"},
 		{ID: "passkey", Done: pk.Enabled && len(keys) > 0, Path: "/profile"},
 		{ID: "directory", Optional: true, Done: a.ldap(ctx).Enabled || a.entra(ctx, r).Enabled || prov.Google.Enabled || prov.Apple.Enabled || prov.OIDC.Enabled, Path: "/settings/directories"},

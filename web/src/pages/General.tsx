@@ -16,8 +16,12 @@ export function GeneralPage() {
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<unknown>(null);
   const [rotate, setRotate] = useState(false);
+  const [proxies, setProxies] = useState('');
   useEffect(() => {
-    if (data) setV(data);
+    if (data) {
+      setV(data);
+      setProxies(data.general.trusted_proxies.join('\n'));
+    }
   }, [data]);
   if (!v) return error ? <ErrorNotice error={error} /> : <Loading />;
   const ro = !admin;
@@ -56,7 +60,7 @@ export function GeneralPage() {
           <dl className="kv">
             <dt>{t('Issuer (public address)')}</dt>
             <dd>
-              <code>{v.issuer}</code> {!v.public_url_set && <span className="pill pill-warn">{t('SPA_PUBLIC_URL is not set')}</span>}
+              <code>{v.issuer}</code> {!v.public_url_set && <span className="pill pill-warn">{t('The public address is not set')}</span>}
             </dd>
             <dt>{t('Discovery')}</dt>
             <dd>
@@ -65,8 +69,61 @@ export function GeneralPage() {
               </a>
             </dd>
             <dt>{t('Secrets are kept in')}</dt>
-            <dd>{v.secrets === 'openbao' ? 'OpenBao' : t('the database, sealed with SPA_MASTER_KEY')}</dd>
+            <dd>{v.secrets === 'openbao' ? 'OpenBao' : v.secrets}</dd>
           </dl>
+          <Field label={t('Public address')} hint={t('The address of Keystone and its OpenID Connect issuer, exactly as browsers and applications reach it. Changing it later makes connected applications reject Keystone until they get a new key.')}>
+            <input
+              className="input mono"
+              value={v.general.public_url}
+              disabled={ro}
+              placeholder="https://keystone.example.com"
+              onChange={(e) => setV({ ...v, general: { ...v.general, public_url: e.target.value } })}
+            />
+          </Field>
+          <Field
+            label={t('Trusted proxies')}
+            hint={
+              <>
+                {t('Addresses or networks of reverse proxies whose X-Forwarded-For and X-Forwarded-Host are believed, one per line.')}{' '}
+                {v.proxy_hint && admin && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => {
+                      const list = [...v.general.trusted_proxies, v.proxy_hint!];
+                      setProxies(list.join('\n'));
+                      setV({ ...v, general: { ...v.general, trusted_proxies: list } });
+                    }}
+                  >
+                    {t('Add the proxy this request came through ({address})', { address: v.proxy_hint })}
+                  </button>
+                )}
+              </>
+            }
+          >
+            <textarea
+              className="input mono"
+              rows={3}
+              value={proxies}
+              disabled={ro}
+              placeholder="192.168.0.100"
+              onChange={(e) => {
+                setProxies(e.target.value);
+                setV({ ...v, general: { ...v.general, trusted_proxies: e.target.value.split(/[\s,]+/).filter(Boolean) } });
+              }}
+            />
+          </Field>
+          <Field label={t('Session lifetime, hours')} hint={t('How long a Keystone session lasts, from 1 to 720 hours.')}>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={720}
+              value={v.general.session_hours}
+              disabled={ro}
+              onChange={(e) => setV({ ...v, general: { ...v.general, session_hours: Number(e.target.value) } })}
+            />
+          </Field>
           <Field label={t('Organization')} hint={t('Shown on the sign-in page')}>
             <input className="input" value={v.general.organization} disabled={ro} onChange={(e) => setV({ ...v, general: { ...v.general, organization: e.target.value } })} />
           </Field>

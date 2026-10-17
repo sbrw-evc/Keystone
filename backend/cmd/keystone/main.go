@@ -19,11 +19,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -83,30 +81,11 @@ func run() error {
 		}
 	}
 
-	hours, _ := strconv.Atoi(env("SPA_SESSION_HOURS", "12"))
-	cfg := app.Config{PublicURL: env("SPA_PUBLIC_URL", ""), SessionHours: hours, WebDir: env("SPA_WEB_DIR", "web")}
-	for _, n := range strings.Split(env("SPA_TRUSTED_PROXIES", ""), ",") {
-		if n = strings.TrimSpace(n); n == "" {
-			continue
-		}
-		if !strings.Contains(n, "/") {
-			if strings.Contains(n, ":") {
-				n += "/128"
-			} else {
-				n += "/32"
-			}
-		}
-		_, ipn, err := net.ParseCIDR(n)
-		if err != nil {
-			return errors.New("SPA_TRUSTED_PROXIES: " + err.Error())
-		}
-		cfg.TrustedProxies = append(cfg.TrustedProxies, ipn)
+	a := app.New(app.Config{WebDir: env("SPA_WEB_DIR", "web")}, st, sec)
+	if err := a.ImportLegacySettings(ctx, app.LegacySettings{PublicURL: env("SPA_PUBLIC_URL", ""), TrustedProxies: env("SPA_TRUSTED_PROXIES", ""),
+		SessionHours: env("SPA_SESSION_HOURS", "")}); err != nil {
+		return err
 	}
-	if cfg.PublicURL == "" {
-		slog.Warn("SPA_PUBLIC_URL is not set: the issuer follows the request address; set it in production")
-	}
-
-	a := app.New(cfg, st, sec)
 	if err := a.Bootstrap(ctx, env("SPA_ADMIN_USERNAME", "admin"), env("SPA_ADMIN_PASSWORD", "")); err != nil {
 		return err
 	}
@@ -120,7 +99,7 @@ func run() error {
 		defer cancel()
 		srv.Shutdown(shutdown) //nolint:errcheck
 	}()
-	slog.Info("keystone listening", "addr", srv.Addr, "issuer", cfg.PublicURL, "secrets", sec.Kind())
+	slog.Info("keystone listening", "addr", srv.Addr, "secrets", sec.Kind())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

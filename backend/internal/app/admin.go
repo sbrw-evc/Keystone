@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -684,30 +685,65 @@ func (a *App) putPolicy(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) getGeneral(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	writeJSON(w, http.StatusOK, map[string]any{"general": a.general(ctx), "passkeys": a.passkeys(ctx), "issuer": a.Issuer(r),
-		"secrets": a.sec.Kind(), "public_url_set": a.cfg.PublicURL != ""})
+	g := a.general(ctx)
+	out := map[string]any{"general": g, "passkeys": a.passkeys(ctx), "issuer": a.Issuer(r), "secrets": a.sec.Kind(),
+		"public_url_set": g.PublicURL != ""}
+	// A proxy in front of Keystone that is not trusted yet: suggest its address.
+	if r.Header.Get("X-Forwarded-For") != "" && !a.trusted(r) {
+		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+			out["proxy_hint"] = host
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (a *App) putGeneral(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var in struct {
-		General  General         `json:"general"`
+		General struct {
+			Organization   string    `json:"organization"`
+			AllowLocal     bool      `json:"allow_local"`
+			PublicURL      *string   `json:"public_url"`
+			TrustedProxies *[]string `json:"trusted_proxies"`
+			SessionHours   *int      `json:"session_hours"`
+		} `json:"general"`
 		Passkeys PasskeySettings `json:"passkeys"`
 	}
 	if err := decode(r, &in); err != nil {
 		writeError(w, err)
 		return
 	}
-	in.General.Organization = strings.TrimSpace(in.General.Organization)
+	old := a.general(ctx)
+	next := old
+	next.Organization, next.AllowLocal = in.General.Organization, in.General.AllowLocal
+	if in.General.PublicURL != nil {
+		next.PublicURL = *in.General.PublicURL
+	}
+	if in.General.TrustedProxies != nil {
+		next.TrustedProxies = *in.General.TrustedProxies
+	}
+	if in.General.SessionHours != nil {
+		next.SessionHours = *in.General.SessionHours
+	}
+	next, err := next.normalize()
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	in.Passkeys.RPID = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(in.Passkeys.RPID), "."))
 	if in.Passkeys.RPID != "" {
-		host := strings.Split(strings.TrimPrefix(strings.TrimPrefix(a.Issuer(r), "https://"), "http://"), ":")[0]
+		issuer := next.PublicURL
+		if issuer == "" {
+			issuer = a.Issuer(r)
+		}
+		host := strings.Split(strings.TrimPrefix(strings.TrimPrefix(issuer, "https://"), "http://"), ":")[0]
+		host = strings.Split(host, "/")[0]
 		if strings.ContainsAny(in.Passkeys.RPID, " /:@") || !hostWithin(host, in.Passkeys.RPID) {
 			writeError(w, fail(http.StatusBadRequest, "passkey_domain", "The passkey domain must be the domain of Keystone or a parent of it"))
 			return
 		}
 	}
-	if err := a.st.PutSetting(ctx, keyGeneral, in.General); err != nil {
+	if _, err := a.UpdateGeneral(ctx, func(g *General) { *g = next }); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -715,7 +751,12 @@ func (a *App) putGeneral(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	a.st.Audit(ctx, actor(r), "settings.general", "", a.clientIP(r), map[string]any{"allow_local": in.General.AllowLocal, "passkeys": in.Passkeys.Enabled})
+	detail := map[string]any{"allow_local": next.AllowLocal, "passkeys": in.Passkeys.Enabled, "session_hours": next.SessionHours,
+		"trusted_proxies": next.TrustedProxies}
+	if next.PublicURL != old.PublicURL {
+		detail["public_url"] = next.PublicURL
+	}
+	a.st.Audit(ctx, actor(r), "settings.general", "", a.clientIP(r), detail)
 	a.getGeneral(w, r)
 }
 
