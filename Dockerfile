@@ -2,8 +2,11 @@
 #   docker build -t keystone .
 #   docker run -p 8080:8080 -v keystone-data:/data keystone   (then open it and follow the setup wizard)
 
-# 1. The web app (React + Vite) → /src/web/dist
-FROM node:22-alpine AS web
+# The web app and the server are built on the platform of the builder and the binary is cross-compiled for the
+# target, so a multi-platform build (amd64 + arm64) needs no emulation.
+
+# 1. The web app (React + Vite) → /src/web/dist (the same files for every platform)
+FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -11,12 +14,15 @@ COPY web/ ./
 RUN npm run build
 
 # 2. The server → /out/keystone (static, no cgo)
-FROM golang:1.26-alpine AS server
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS server
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /src/backend
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/keystone ./cmd/keystone && mkdir -p /out/data
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/keystone ./cmd/keystone \
+ && mkdir -p /out/data
 
 # 3. A minimal image: the binary, the web app, CA certificates, a non-root user.
 FROM gcr.io/distroless/static-debian12:nonroot
