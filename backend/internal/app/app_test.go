@@ -58,6 +58,8 @@ type harness struct {
 	t   *testing.T
 	srv *httptest.Server
 	st  *store.Store
+	a   *app.App
+	sec *secrets.Memory
 	url string
 }
 
@@ -75,7 +77,9 @@ func newHarness(t *testing.T) *harness {
 	t.Cleanup(h.srv.Close)
 	// localhost: passkeys need https or localhost
 	h.url = strings.Replace(h.srv.URL, "127.0.0.1", "localhost", 1)
-	a = app.New(app.Config{PublicURL: h.url}, st, secrets.NewMemory())
+	h.sec = secrets.NewMemory()
+	a = app.New(app.Config{PublicURL: h.url}, st, h.sec)
+	h.a = a
 	if err := a.Bootstrap(ctx, "admin", "Initial-Passw0rd!"); err != nil {
 		t.Fatal(err)
 	}

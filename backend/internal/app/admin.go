@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -44,7 +45,7 @@ func (a *App) userView(ctx context.Context, u store.User, p policy.PasswordPolic
 		return v, err
 	}
 	v.Passkeys = len(keys)
-	t, err := a.st.TOTPOf(ctx, u.ID)
+	t, err := a.totpOf(ctx, u.ID)
 	if err != nil {
 		return v, err
 	}
@@ -130,10 +131,9 @@ func (a *App) createUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	u.PasswordHash = hash
 	now := a.now()
 	u.PasswordChangedAt = &now
-	created, err := a.st.CreateUser(ctx, u)
+	created, err := a.newLocalUser(ctx, u, hash)
 	if errors.Is(err, store.ErrConflict) {
 		writeError(w, fail(http.StatusConflict, "username_taken", "This user name is taken"))
 		return
@@ -281,7 +281,9 @@ func (a *App) deleteUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	a.sec.Delete(ctx, secretTOTP(u.ID)) //nolint:errcheck // the secret of the authenticator app, if any
+	if err := a.forgetUserSecrets(ctx, u.ID); err != nil {
+		slog.Warn("the secrets of a deleted person stay in the secret store", "user", u.ID, "err", err)
+	}
 	a.st.Audit(ctx, actor(r), "user.deleted", u.Username, a.clientIP(r), nil)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -583,8 +585,8 @@ func (a *App) reissueKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	secret, token := a.issueCredentials(ctx, &app)
-	if err := a.st.SaveApplication(ctx, app); err != nil {
+	secret, token, err := a.issueCredentials(ctx, app.ID)
+	if err != nil {
 		writeError(w, err)
 		return
 	}
@@ -607,6 +609,9 @@ func (a *App) deleteApp(w http.ResponseWriter, r *http.Request) {
 	if err := a.st.DeleteApplication(ctx, app.ID); err != nil {
 		writeError(w, err)
 		return
+	}
+	if err := a.forgetAppCreds(ctx, app.ID); err != nil {
+		slog.Warn("the credentials of a removed application stay in the secret store", "app", app.ID, "err", err)
 	}
 	a.st.Audit(ctx, actor(r), "application.removed", app.Name, a.clientIP(r), nil)
 	w.WriteHeader(http.StatusNoContent)

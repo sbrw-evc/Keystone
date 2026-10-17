@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -186,10 +187,15 @@ func ConnectionKey(issuer, clientID, secret, token string) string {
 	return "spa1." + base64.RawURLEncoding.EncodeToString(raw)
 }
 
-func (a *App) issueCredentials(ctx context.Context, app *store.Application) (secret, token string) {
+// issueCredentials makes a new client secret and federation token for the application and keeps their keyed hashes
+// in the secret store (the previous ones stop working).
+func (a *App) issueCredentials(ctx context.Context, appID string) (secret, token string, err error) {
 	secret, token = randomToken(32), "spat_"+randomToken(32)
-	app.SecretHash, app.TokenHash = a.secretHash(ctx, secret), a.secretHash(ctx, token)
-	return
+	c := appCreds{SecretHash: a.secretHash(ctx, secret), TokenHash: a.secretHash(ctx, token)}
+	if c.SecretHash == "" || c.TokenHash == "" {
+		return "", "", errors.New("the secret store does not answer")
+	}
+	return secret, token, a.putAppCreds(ctx, appID, c)
 }
 
 func (a *App) connectApp(ctx context.Context, r *http.Request, actor string, in AppInput, asg []store.Assignment) (Connection, error) {
@@ -199,8 +205,12 @@ func (a *App) connectApp(ctx context.Context, r *http.Request, actor string, in 
 	}
 	app.ID = store.NewID("app")
 	app.ClientID = "spa_" + randomToken(12)
-	secret, token := a.issueCredentials(ctx, &app)
 	if err := a.st.SaveApplication(ctx, app); err != nil {
+		return Connection{}, err
+	}
+	secret, token, err := a.issueCredentials(ctx, app.ID)
+	if err != nil {
+		a.st.DeleteApplication(ctx, app.ID) //nolint:errcheck
 		return Connection{}, err
 	}
 	if err := a.saveAssignments(ctx, app, asg); err != nil {
@@ -246,7 +256,7 @@ func (a *App) federated(next func(http.ResponseWriter, *http.Request, store.Appl
 			writeError(w, fail(http.StatusUnauthorized, "unauthorized", "The federation token is missing"))
 			return
 		}
-		app, err := a.st.ApplicationByToken(r.Context(), a.secretHash(r.Context(), strings.TrimSpace(raw)))
+		app, err := a.appByToken(r.Context(), strings.TrimSpace(raw))
 		if err != nil {
 			writeError(w, fail(http.StatusUnauthorized, "unauthorized", "The federation token is not valid: issue a new connection key"))
 			return

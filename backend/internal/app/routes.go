@@ -270,8 +270,8 @@ func (a *App) Bootstrap(ctx context.Context, username, password string) error {
 		return err
 	}
 	now := a.now()
-	u, err := a.st.CreateUser(ctx, store.User{Username: username, Name: "Administrator", Source: "local", SPARole: "admin",
-		PasswordHash: hash, PasswordChangedAt: &now, MustChange: true})
+	u, err := a.newLocalUser(ctx, store.User{Username: username, Name: "Administrator", Source: "local", SPARole: "admin",
+		PasswordChangedAt: &now, MustChange: true}, hash)
 	if err != nil {
 		return err
 	}
