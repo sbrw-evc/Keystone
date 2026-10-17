@@ -1,5 +1,6 @@
-# Keystone with its PostgreSQL. Copy .env.example to .env, set SPA_MASTER_KEY and SPA_ADMIN_PASSWORD, then:
-#   docker compose up -d --build
+# Keystone with its PostgreSQL and OpenBao. Run ./install.sh (it makes .env and the unseal key of OpenBao), then open
+# Keystone in a browser: the setup wizard asks for the setup code from `docker compose logs keystone`, connects
+# PostgreSQL and OpenBao, and creates the first administrator. Everything else is set in Keystone.
 #
 # Keystone was called SPA before: the compose project and the service are now "keystone", while the database name,
 # its user and the data volume keep the old "spa" names so that an existing installation keeps its data.
@@ -13,7 +14,7 @@ services:
       # The database and its user keep the names from before the rename (existing data).
       POSTGRES_DB: spa
       POSTGRES_USER: spa
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (install.sh makes it)}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,6 +23,16 @@ services:
       timeout: 3s
       retries: 20
 
+  openbao:
+    image: openbao/openbao:${OPENBAO_VERSION:-2.6.2}
+    restart: unless-stopped
+    command: ["server", "-config=/openbao/config/config.hcl"]
+    cap_add: [IPC_LOCK]
+    volumes:
+      - ./openbao/config.hcl:/openbao/config/config.hcl:ro
+      - ./openbao/keys:/openbao/keys:ro
+      - ./openbao/data:/openbao/data
+
   keystone:
     build: .
     image: keystone:latest
@@ -29,12 +40,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      openbao:
+        condition: service_started
+    # Only read by an installation from before the setup wizard: its SPA_* and BAO_* settings are taken over once.
     env_file:
       - path: .env
         required: false
-    environment:
-      SPA_DATABASE_URL: postgres://spa:${POSTGRES_PASSWORD:-spa}@postgres:5432/spa?sslmode=disable
-      SPA_PUBLIC_URL: ${SPA_PUBLIC_URL:-http://localhost:8080}
+    volumes:
+      # bootstrap.json, the AppRole secret_id of OpenBao, the setup code
+      - keystone-data:/data
     ports:
       - "${SPA_PORT:-8080}:8080"
 
@@ -43,3 +57,4 @@ volumes:
     # The volume keeps the name it had when the project was "spa" (compose named it <project>_pgdata), so the data
     # of an existing installation is found again. If your checkout directory had another name, see `docker volume ls`.
     name: spa_pgdata
+  keystone-data:

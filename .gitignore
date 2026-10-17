@@ -4,3 +4,6 @@
 /backend/keystone
 *.log
 .env
+/openbao/keys/
+/openbao/data/
+/data/

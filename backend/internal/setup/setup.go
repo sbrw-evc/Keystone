@@ -139,7 +139,9 @@ func (e *apiErr) Error() string { return e.Message }
 
 func (e *apiErr) HTTPStatus() int { return e.Status }
 
-func fail(status int, code, message string) *apiErr { return &apiErr{Status: status, Code: code, Message: message} }
+func fail(status int, code, message string) *apiErr {
+	return &apiErr{Status: status, Code: code, Message: message}
+}
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
