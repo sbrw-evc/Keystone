@@ -128,9 +128,13 @@ Requests carry `Authorization: Bearer <token>` (the token of the connection key)
   "roles": [{"id": "admin", "name": "Administrator", "description": "…"}],
   "methods": [{"id": "passkey", "title": "Passkey"}, {"id": "ldap", "title": "Active Directory"}],
   "sign_out_url": "https://keystone.example.com/oauth2/logout",
-  "account_url": "https://keystone.example.com/profile"
+  "account_url": "https://keystone.example.com/profile",
+  "user_import": false
 }
 ```
+
+`user_import` is `true` while a Keystone administrator has opened the import window of this application (see
+`POST /api/spa/v1/users/import` below); applications use it to offer "Move local users to Keystone".
 
 `account_url` is where a person changes their password and manages passkeys; applications link to it from their
 user menu ("Account and security").
@@ -161,6 +165,75 @@ Current have custom roles):
 `id` is what the application understands (`[a-z0-9_.:-]{1,64}`); names and descriptions are what Keystone administrators
 see. Assignments to a role that disappears from the catalogue stay in Keystone but are not given out (Keystone shows them as
 "unknown role"). `default` is suggested to Keystone administrators for new rules.
+
+### `POST <issuer>/api/spa/v1/users/import`
+
+An application that had its own local users before it was connected moves them to Keystone once. Keystone accepts the
+request only while the **import window** of the application is open: a Keystone administrator opens it with
+**Allow moving users** on the application's card; it closes after the first request that imports at least one person,
+or 24 hours after it was opened, whichever comes first. `GET /api/spa/v1/config` tells whether it is open
+(`"user_import": true`).
+
+Request (at most 1000 people per request):
+
+```json
+{"users": [
+  {"username": "jdoe", "name": "John Doe", "email": "jdoe@example.com", "role": "operator",
+   "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0$3q2+7w…"},
+  {"username": "ann", "name": "Ann", "email": "", "role": "viewer", "password_hash": null}
+]}
+```
+
+- `username` — required; up to 128 characters, no spaces, tabs, `/` or `\`. Compared with existing Keystone
+  accounts without regard to case.
+- `name`, `email` — optional; an e-mail that is not valid (no `@`, or longer than 256 characters) is left empty.
+- `role` — required; the ID of one of the roles the application published (`PUT /api/spa/v1/roles`; until it
+  publishes, its fixed catalogue). Keystone gives the person this role in the application right away (a rule
+  "person → role").
+- `password_hash` — the person's password hash as the application kept it, in one of two formats:
+  - `pbkdf2-sha256$<iterations>$<salt>$<key>` — PBKDF2-HMAC-SHA256, salt and key in base64 (standard alphabet,
+    padding optional), 1000 – 10 000 000 iterations, salt at least 8 bytes, key 16–64 bytes (Keystone's own format);
+  - `$argon2id$v=19$m=<KiB>,t=<passes>,p=<lanes>$<salt>$<hash>` — Argon2id in the PHC string format (what
+    argon2-cffi and passlib write), salt and hash in base64 (standard alphabet, padding optional); `m` from 8·`p` up
+    to 262144 (256 MiB), `t` 1–10, `p` 1–16, salt at least 8 bytes, hash 16–64 bytes.
+
+  Keystone checks the password against this hash at the person's first sign-in and then replaces it with a PBKDF2
+  hash of its own. The hash is kept in Keystone's secret store (OpenBao), never in its database.
+  `null` (or `""`): the person is created without a password and must get one — a Keystone administrator sets a
+  temporary password (**Users → the person → Set password**), which the person changes at the first sign-in.
+
+Imported people are local Keystone accounts (`source = local`) with the Keystone role `user`. Two-step verification
+(TOTP) is not moved: people turn it on again in Keystone. Existing Keystone accounts are **never changed**: a person
+whose user name or e-mail is taken is reported as a conflict and skipped.
+
+Answer `200`:
+
+```json
+{"imported":  [{"username": "jdoe", "id": "usr_…"}],
+ "conflicts": [{"username": "admin", "reason": "username_taken"}],
+ "rejected":  [{"username": "bad name", "reason": "invalid_username"}]}
+```
+
+Every entry of the request is in exactly one of the three lists (each list keeps the order of the request; the lists
+are always present, empty as `[]`). Reasons:
+
+| list | reason | meaning |
+| --- | --- | --- |
+| `conflicts` | `username_taken` | a Keystone account, or an earlier entry of this request, has this user name |
+| `conflicts` | `email_taken` | a Keystone account, or an earlier entry of this request, has this e-mail |
+| `rejected` | `invalid_username` | the user name is empty, too long, or has spaces or slashes |
+| `rejected` | `invalid_role` | the role is not one of the application's roles |
+| `rejected` | `invalid_hash` | the hash is in neither format, or its parameters are out of range |
+
+The checks run in the order `invalid_username`, `invalid_role`, `invalid_hash`, `username_taken`, `email_taken`; the
+first that fails decides the reason.
+
+Errors: `401` — the token is missing or not valid; `403 {"error": "import_not_allowed"}` — the import window of the
+application is not open; `400 {"error": "too_many_users"}` — more than 1000 entries; `400 {"error": "bad_request"}` —
+the body is not the JSON above. Error answers also carry `code` (the same value) and an English `message`.
+
+Everything goes to Keystone's audit log: the import (`application.users_imported` with the counts), every created
+person (`user.created` with `"source": "import"`), and the opening and closing of the window.
 
 ### Fixed catalogues
 

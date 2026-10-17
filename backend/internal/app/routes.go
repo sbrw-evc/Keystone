@@ -33,6 +33,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/spa/v1/config", a.federated(a.fedConfig))
 	mux.HandleFunc("GET /api/spa/v1/users", a.federated(a.fedUsers))
 	mux.HandleFunc("PUT /api/spa/v1/roles", a.federated(a.fedRoles))
+	mux.HandleFunc("POST /api/spa/v1/users/import", a.federated(a.fedImport))
 
 	// sign-in
 	mux.HandleFunc("GET /api/v1/auth/methods", a.signInMethods)
@@ -89,6 +90,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/applications", write(a.createApp))
 	mux.HandleFunc("PUT /api/v1/applications/{id}", write(a.updateApp))
 	mux.HandleFunc("POST /api/v1/applications/{id}/key", write(a.reissueKey))
+	mux.HandleFunc("POST /api/v1/applications/{id}/user-import", write(a.allowUserImport))
 	mux.HandleFunc("DELETE /api/v1/applications/{id}", write(a.deleteApp))
 	mux.HandleFunc("GET /api/v1/settings/password-policy", read(a.getPolicy))
 	mux.HandleFunc("PUT /api/v1/settings/password-policy", write(a.putPolicy))
@@ -191,9 +193,11 @@ func (a *App) continueAuthorize(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"next": next})
 }
 
-// web serves the built web app: files as they are, every other path gets index.html (client-side routes).
-func (a *App) web() http.Handler {
-	dir := a.cfg.WebDir
+func (a *App) web() http.Handler { return WebHandler(a.cfg.WebDir) }
+
+// WebHandler serves the built web app in dir: files as they are, every other path gets index.html (client-side
+// routes); /api/ paths it does not know answer 404.
+func WebHandler(dir string) http.Handler {
 	files := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if dir == "" {
@@ -236,7 +240,7 @@ func (a *App) onboarding(w http.ResponseWriter, r *http.Request) {
 	pk := a.passkeys(ctx)
 	prov := a.providers(ctx)
 	steps := []step{
-		{ID: "public_url", Done: a.cfg.PublicURL != "", Path: "/settings/general"},
+		{ID: "public_url", Done: a.general(ctx).PublicURL != "", Path: "/settings/general"},
 		{ID: "policy", Done: p.BlockCommon && p.HistoryCount > 0 && p.LockoutAttempts > 0, Path: "/settings/password-policy"},
 		{ID: "passkey", Done: pk.Enabled && len(keys) > 0, Path: "/profile"},
 		{ID: "directory", Optional: true, Done: a.ldap(ctx).Enabled || a.entra(ctx, r).Enabled || prov.Google.Enabled || prov.Apple.Enabled || prov.OIDC.Enabled, Path: "/settings/directories"},
@@ -270,8 +274,8 @@ func (a *App) Bootstrap(ctx context.Context, username, password string) error {
 		return err
 	}
 	now := a.now()
-	u, err := a.st.CreateUser(ctx, store.User{Username: username, Name: "Administrator", Source: "local", SPARole: "admin",
-		PasswordHash: hash, PasswordChangedAt: &now, MustChange: true})
+	u, err := a.newLocalUser(ctx, store.User{Username: username, Name: "Administrator", Source: "local", SPARole: "admin",
+		PasswordChangedAt: &now, MustChange: true}, hash)
 	if err != nil {
 		return err
 	}

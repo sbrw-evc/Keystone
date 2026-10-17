@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { AppWindow, Check, KeyRound, Link2, Plus, ShieldCheck, Trash2, X } from 'lucide-react';
+import { AppWindow, Check, KeyRound, Link2, Plus, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { del, get, post, put } from '../api/client';
 import type { AppInput, Application, ApplicationList, AppType, Assignment, Connection, Group, Role, User } from '../api/types';
 import { ActionMenu, AppIcon, Confirm, Copy, Empty, ErrorNotice, Field, Loading, Modal, PageHead } from '../components/ui';
-import { formatAgo, useT, type TFn } from '../i18n';
+import { formatAgo, formatDate, useT, type TFn } from '../i18n';
 import { isAdmin, useAuth, useLoad } from '../lib/auth';
 import { toast } from '../lib/toast';
 
@@ -386,6 +386,7 @@ export function ApplicationsPage() {
   const [rekey, setRekey] = useState<Application | null>(null);
   const [remove, setRemove] = useState<Application | null>(null);
   const [newKey, setNewKey] = useState<Connection | null>(null);
+  const [moving, setMoving] = useState<Application | null>(null);
   const wizard = params.get('connect') === '1' && admin;
   const closeWizard = () => {
     params.delete('connect');
@@ -454,6 +455,11 @@ export function ApplicationsPage() {
                         <small>
                           {a.base_url.replace(/^https?:\/\//, '')} · <span className="mono">{a.client_id}</span>
                         </small>
+                        {a.user_import_until && (
+                          <span className="pill pill-warn" title={t('The application may move its local users to Keystone until {time}', { time: formatDate(a.user_import_until) })}>
+                            {t('moving users allowed')}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -495,6 +501,10 @@ export function ApplicationsPage() {
                               <KeyRound size={16} />
                               {t('Issue a new key')}
                             </button>
+                            <button type="button" className="um-item" onClick={() => (close(), setMoving(a))}>
+                              <UserPlus size={16} />
+                              {a.user_import_until ? t('Stop moving users') : t('Allow moving users')}
+                            </button>
                             <div className="um-sep" />
                             <button type="button" className="um-item danger" onClick={() => (close(), setRemove(a))}>
                               <Trash2 size={16} />
@@ -513,6 +523,22 @@ export function ApplicationsPage() {
       )}
       {wizard && list && <Wizard list={list} dir={dir} onClose={closeWizard} onDone={reload} />}
       {edit && <AccessDialog app={edit} dir={dir} onClose={() => setEdit(null)} onSaved={reload} />}
+      {moving && (
+        <Confirm
+          title={moving.user_import_until ? t('Stop {name} from moving users?', { name: moving.name }) : t('Allow {name} to move its users?', { name: moving.name })}
+          text={
+            moving.user_import_until
+              ? t('The application can no longer move its local users to Keystone.')
+              : t('For 24 hours the application may move its local users to Keystone once: accounts with their passwords and their roles in the application. Existing Keystone accounts are not changed; two-step verification is set up again.')
+          }
+          confirm={moving.user_import_until ? t('Stop') : t('Allow')}
+          onClose={() => setMoving(null)}
+          onConfirm={async () => {
+            await post(`/api/v1/applications/${moving.id}/user-import`, { allow: !moving.user_import_until });
+            reload();
+          }}
+        />
+      )}
       {rekey && (
         <Confirm
           title={t('Issue a new key for {name}?', { name: rekey.name })}

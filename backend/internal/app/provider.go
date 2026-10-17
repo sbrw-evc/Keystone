@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"net/http"
@@ -208,7 +207,7 @@ func (a *App) clientOf(ctx context.Context, r *http.Request) (store.Application,
 	if err != nil || secret == "" {
 		return app, false
 	}
-	return app, subtle.ConstantTimeCompare([]byte(a.secretHash(ctx, secret)), []byte(app.SecretHash)) == 1
+	return app, a.checkClientSecret(ctx, app.ID, secret)
 }
 
 func (a *App) token(w http.ResponseWriter, r *http.Request) {

@@ -135,9 +135,12 @@ token is missing or no longer valid (the key was replaced or the application rem
   "roles": [{"id": "admin", "name": "Administrator", "description": "…"}],
   "methods": [{"id": "password", "title": "Password"}, {"id": "passkey", "title": "Passkey"}],
   "sign_out_url": "https://keystone.example.com/oauth2/logout",
-  "account_url": "https://keystone.example.com/profile"
+  "account_url": "https://keystone.example.com/profile",
+  "user_import": false
 }
 ```
+
+`user_import`: the import window of the application is open (`POST /api/spa/v1/users/import`).
 
 ### `GET /api/spa/v1/users`
 
@@ -156,6 +159,32 @@ synchronisation time of the application.
 ```
 
 Role IDs match `[a-z0-9_.:-]{1,64}`, 1–200 roles. Answer: `{"roles": [...]}` as stored.
+
+### `POST /api/spa/v1/users/import`
+
+Moves the local users of the application to Keystone, once; the full contract is in
+[protocol.md §3](protocol.md#post-issuerapispav1usersimport). Only while the import window of the application is
+open: an administrator opens it (`POST /api/v1/applications/{id}/user-import`), and it closes after the first request
+that imports someone, or after 24 hours.
+
+```json
+{"users": [{"username": "jdoe", "name": "John Doe", "email": "jdoe@example.com", "role": "operator",
+            "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$<salt>$<hash>"}]}
+```
+
+At most 1000 entries. `password_hash`: `pbkdf2-sha256$<iter>$<salt b64>$<key b64>`, Argon2id in the PHC format, or
+`null` (an administrator gives the person a temporary password). `role`: one of the application's roles.
+
+Answer `200`:
+
+```json
+{"imported": [{"username": "jdoe", "id": "usr_…"}],
+ "conflicts": [{"username": "…", "reason": "username_taken|email_taken"}],
+ "rejected": [{"username": "…", "reason": "invalid_username|invalid_role|invalid_hash"}]}
+```
+
+`401` — the token is not valid; `403 {"error": "import_not_allowed"}` — the window is closed;
+`400 {"error": "too_many_users"}` — more than 1000 entries. Existing accounts are never changed; TOTP is not moved.
 
 ## 3. Web app API (`/api/v1/`)
 
@@ -277,6 +306,7 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 | `GET /api/v1/applications` | `{"applications": [Application], "types": {type: name}, "presets": {type: [Role]}}` | auditor |
 | `POST /api/v1/applications` | `AppInput` + `"assignments"` → `201 Connection` | admin |
 | `PUT /api/v1/applications/{id}` | `AppInput` + `"assignments"` (replaces the rules when given) → `Application` | admin |
+| `POST /api/v1/applications/{id}/user-import` | `{"allow": true}` opens for 24 hours, `{"allow": false}` closes the window in which the application may move its local users to Keystone → `Application` | admin |
 | `POST /api/v1/applications/{id}/key` | → `Connection` with a new key; the old secret and token stop working | admin |
 | `DELETE /api/v1/applications/{id}` | `204` | admin |
 | `GET /api/v1/audit` | `?q=<text>&before=<id>` → up to 100 `[{"id","at","actor","action","target","detail","ip"}]`, newest first | auditor |
@@ -305,6 +335,7 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 // Application
 {"id": "app_…", "type": "…", "name": "…", "base_url": "…", "redirect_uris": ["…"], "logout_uris": ["…"],
  "client_id": "spa_…", "roles": [Role], "default_role": "", "roles_published": "…", "last_sync_at": "…",
+ "user_import_until": "…", // while the import window is open; absent when it is closed
  "created_at": "…", "updated_at": "…", "users": 7, "callback": "https://…/api/auth/spa/callback",
  "assignments": [{"id": 1, "app_id": "app_…", "subject_type": "group", "subject_id": "grp_…", "subject_name": "NOC", "role": "viewer"}]}
 // Connection — the key is shown once: spa1.<base64url of {"issuer","client_id","client_secret","token"}>
@@ -317,8 +348,8 @@ Passkey errors: `method_off` (404), `passkey_origin`, `passkey_failed` (401).
 | --- | --- | --- |
 | `GET /api/v1/settings/password-policy` | `{"policy": PasswordPolicy, "local_users", "expired_users", "expiring_users", "locked_users"}` | auditor |
 | `PUT /api/v1/settings/password-policy` | `PasswordPolicy` → the same as GET; `invalid_policy` | admin |
-| `GET /api/v1/settings/general` | `{"general": {"organization","allow_local"}, "passkeys": {"enabled","rp_id"}, "issuer", "secrets": "database|openbao", "public_url_set"}` | auditor |
-| `PUT /api/v1/settings/general` | `{"general", "passkeys"}` → the same as GET; `passkey_domain` | admin |
+| `GET /api/v1/settings/general` | `{"general": {"organization","allow_local","public_url","trusted_proxies":[…],"session_hours"}, "passkeys": {"enabled","rp_id"}, "issuer", "secrets": "openbao", "public_url_set", "proxy_hint"?}` — `proxy_hint`: the address of a proxy the request came through that is not trusted yet | auditor |
+| `PUT /api/v1/settings/general` | `{"general", "passkeys"}` → the same as GET; `public_url`, `trusted_proxies` (addresses or networks) and `session_hours` (1–720) apply at once, left out they are kept; `invalid_public_url`, `invalid_proxy`, `invalid_session_hours`, `passkey_domain` | admin |
 | `POST /api/v1/settings/signing-key/rotate` | new ID token signing key; the previous stays in the JWKS → `{"ok": true}` | admin |
 | `GET /api/v1/settings/ldap` | `{"config": LDAPConfig, "bind_password_set"}` | auditor |
 | `PUT /api/v1/settings/ldap` | `{"config", "bind_password"?}` → the same as GET; `invalid_directory` | admin |
@@ -359,5 +390,6 @@ Secrets (`bind_password`, `client_secret`, `private_key`) are write-only: an emp
 `user.signed_out`, `user.totp_reset`, `totp.enabled`, `totp.disabled`, `totp.failed`, `totp.recovery_used`,
 `totp.recovery_renewed`, `passkey.added`, `passkey.removed`, `group.saved`, `group.deleted`, `application.connected`,
 `application.updated`, `application.key_issued`, `application.removed`, `application.roles_published`,
+`application.user_import_opened`, `application.user_import_closed`, `application.users_imported`,
 `oauth.token`, `oauth.denied`, `settings.password_policy`, `settings.general`, `settings.ldap`, `settings.entra`,
 `settings.provider`, `settings.signing_key_rotated`.

@@ -90,31 +90,59 @@ incidents, paging and response; formerly Umbrella Monitoring), [Ledger](https://
 ### Docker Compose
 
 ```sh
-cp .env.example .env
-# set SPA_MASTER_KEY (openssl rand -base64 32), SPA_ADMIN_PASSWORD and SPA_PUBLIC_URL
-docker compose up -d --build
+./install.sh
 ```
 
-Keystone listens on `http://localhost:8080` (`SPA_PORT`). Sign in as `admin` with `SPA_ADMIN_PASSWORD`; Keystone asks for
-a new password at once. The **First steps** list on the home page leads through the rest: the password policy, a
-passkey, a directory, the first application and its roles.
+`install.sh` makes `.env` with a random `POSTGRES_PASSWORD` and the unseal key of OpenBao (`openbao/keys/unseal.key`),
+starts PostgreSQL, OpenBao and Keystone, and prints the address, the PostgreSQL password and the command that shows the
+setup code. Open the address in a browser: the **setup wizard** leads through
+
+1. **the setup code** — a one-time code of 12 characters Keystone prints to its log (`docker compose logs keystone |
+   grep setup_code`) and writes to `/data/setup-code`; without it the wizard accepts nothing, and ten wrong codes
+   replace it with a new one;
+2. **storage** — PostgreSQL (the service of the compose file by default, or your own) and OpenBao: the built-in one,
+   which the wizard initialises (KV v2, an AppRole for Keystone; the root token and the recovery key are shown once
+   and not kept — save them), or an external one with an AppRole (`role_id`, `secret_id`). **Check** tests each;
+3. **the first administrator**, 4. **the organisation and the public address**, 5. **the trusted proxies**.
+
+Keystone switches from the wizard to its normal mode without a restart. The **First steps** list on the home page
+leads through the rest: the password policy, a passkey, a directory, the first application and its roles.
 
 The image (`Dockerfile`) builds the web app with Node, the server with Go, and ships both on a distroless base
-(non-root, about 27 MB). Put Keystone behind a TLS reverse proxy in production and set `SPA_TRUSTED_PROXIES`.
+(non-root, about 27 MB). Put Keystone behind a TLS reverse proxy in production and add the proxy in the wizard or in
+**Settings → General**.
 
-### Configuration
+### Where things are kept
 
-| variable | |
-| --- | --- |
-| `SPA_DATABASE_URL` | PostgreSQL connection string (required) |
-| `SPA_PUBLIC_URL` | the address of Keystone and its OpenID Connect issuer, e.g. `https://keystone.example.com` |
-| `SPA_MASTER_KEY` / `SPA_MASTER_KEY_FILE` | base64 of 32 bytes that seals secrets in the database |
-| `BAO_ADDR`, `BAO_TOKEN`, `BAO_MOUNT` | keep secrets in OpenBao (KV v2) instead |
-| `SPA_ADMIN_USERNAME`, `SPA_ADMIN_PASSWORD` | the first administrator, created when Keystone has no people |
-| `SPA_SESSION_HOURS` | Keystone session lifetime (default 12) |
-| `SPA_TRUSTED_PROXIES` | networks whose `X-Forwarded-For` / `X-Forwarded-Host` are trusted |
-| `SPA_LISTEN` | listen address (default `:8080`) |
-| `SPA_WEB_DIR` | the built web app (default `./web`; `/app/web` in the image) |
+- **`.env`**: only `POSTGRES_PASSWORD` (for the PostgreSQL of the compose file; Keystone does not read it — the wizard
+  asks for it once) and, optionally, `SPA_PORT`.
+- **`/data/bootstrap.json`** (the `keystone-data` volume, 0600): the address of PostgreSQL without its password, the
+  address of OpenBao and the AppRole `role_id`; `/data/approle/secret_id` (0600) is the only secret on disk.
+- **OpenBao** (KV v2): every password and secret — password hashes and their history (`users/<id>/password`),
+  authenticator apps and recovery codes (`users/<id>/totp`), the hashes of client secrets and federation tokens
+  (`apps/<id>/credentials`, `apptokens/<hash>`), the signing keys, directory and provider secrets, the PostgreSQL
+  password (`infra/postgres`).
+- **PostgreSQL**: what is not secret — people, groups, roles and their rules, applications, the public keys of
+  passkeys, sessions and one-time codes as hashes, settings, the audit log.
+- **Settings → General**: the public address (the issuer), the trusted proxies, the session lifetime.
+
+The process itself reads only `SPA_DATA_DIR` (default `/data`), `SPA_LISTEN` (default `:8080`) and `SPA_WEB_DIR`.
+
+### Upgrading an installation from before the wizard
+
+An installation configured with `SPA_*` / `BAO_*` variables keeps working: when there is no `bootstrap.json`, Keystone
+takes them over once and says so in its log.
+
+- With `SPA_DATABASE_URL` and `BAO_ADDR` + `BAO_TOKEN` it writes `bootstrap.json` itself and starts as before.
+- With `SPA_MASTER_KEY` (secrets sealed in the database) the wizard asks for the code and OpenBao (the PostgreSQL
+  form is filled from the old settings; leave the password empty). Keystone then moves the sealed secrets, password
+  hashes, recovery codes and application credentials into OpenBao and drops them from the database; the signing key,
+  so the issuer and the tokens of applications, stays the same. A database that has people skips the remaining steps.
+- `SPA_PUBLIC_URL`, `SPA_TRUSTED_PROXIES` and `SPA_SESSION_HOURS` go to **Settings → General**.
+
+Before the upgrade: back up the database and `.env`, make sure `.env` has the `POSTGRES_PASSWORD` the database was
+created with (the old compose file used `spa` when it was not set), and run `./install.sh` (it keeps `.env`). After
+it, remove the `SPA_*` and `BAO_*` lines from `.env`.
 
 ### Two-step verification
 
@@ -158,7 +186,7 @@ docs/      protocol.md, api.md, e2e.md, screens/
 | --- | --- |
 | `make build` | the web app (`web/dist`) and the server (`backend/keystone`) |
 | `make test` | `go vet` and `go test ./...` (set `SPA_TEST_POSTGRES` for the database tests) and the web tests (vitest) |
-| `make run` | build and run Keystone with the built web app (needs `SPA_DATABASE_URL` and `SPA_MASTER_KEY`) |
+| `make run` | build and run Keystone with the built web app (on first start it shows the setup wizard; data in `./data`) |
 | `make dev` | the web app with hot reload on `:5173`, the API proxied to Keystone on `:8080` |
 | `make docker`, `make up`, `make down` | the image; Keystone and PostgreSQL with Docker Compose |
 | `make seed` | demo data in a running Keystone: people, groups, the four Umbrella applications, a password policy |

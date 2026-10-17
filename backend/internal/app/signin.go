@@ -133,7 +133,11 @@ func (a *App) checkLocal(ctx context.Context, u store.User, password string) (st
 	if u.LockedUntil != nil && u.LockedUntil.After(a.now()) {
 		return u, errLocked
 	}
-	if !policy.CheckPassword(u.PasswordHash, password) {
+	ok, err := a.checkPassword(ctx, u, password)
+	if err != nil {
+		return u, err
+	}
+	if !ok {
 		p := a.policy(ctx)
 		limit, minutes := p.LockoutAttempts, p.LockoutMinutes
 		if limit == 0 {
@@ -222,7 +226,7 @@ func (a *App) upsertExternal(ctx context.Context, source, externalID, username, 
 		if !link || same.Source != "local" || same.SPARole == "admin" {
 			return store.User{}, fail(http.StatusConflict, "account_exists", "An account named "+username+" already exists and signs in another way")
 		}
-		if err := a.st.BindExternal(ctx, same.ID, source, externalID); err != nil {
+		if err := a.bindExternal(ctx, same.ID, source, externalID); err != nil {
 			return same, err
 		}
 		a.st.Audit(ctx, "spa", "user.linked", same.Username, "", map[string]any{"source": source})
@@ -272,7 +276,10 @@ func (a *App) changePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fail(http.StatusConflict, "not_local", "The password of this account is changed in "+sourceTitle(u.Source)))
 		return
 	}
-	if !policy.CheckPassword(u.PasswordHash, in.Current) {
+	if ok, err := a.checkPassword(ctx, u, in.Current); err != nil {
+		writeError(w, err)
+		return
+	} else if !ok {
 		writeError(w, fail(http.StatusUnauthorized, "wrong_password", "The current password is wrong"))
 		return
 	}
@@ -302,13 +309,17 @@ func (a *App) setPassword(ctx context.Context, u store.User, password string, mu
 	if v := p.Check(password, u.Username); len(v) > 0 {
 		return &apiError{Status: http.StatusBadRequest, Code: "password_policy", Message: "The password does not meet the password policy", Violations: v}
 	}
-	if policy.CheckPassword(u.PasswordHash, password) && u.PasswordHash != "" {
+	cur, err := a.password(ctx, u.ID)
+	if err != nil {
+		return err
+	}
+	if cur.Hash != "" && policy.CheckPassword(cur.Hash, password) {
 		return &apiError{Status: http.StatusBadRequest, Code: "password_policy", Message: "The new password must differ from the current one", Violations: []string{policy.ViolationHistory}}
 	}
 	if p.HistoryCount > 0 {
-		old, err := a.st.PasswordHistory(ctx, u.ID, p.HistoryCount)
-		if err != nil {
-			return err
+		old := cur.History
+		if len(old) > p.HistoryCount {
+			old = old[:p.HistoryCount]
 		}
 		for _, h := range old {
 			if policy.CheckPassword(h, password) {
@@ -320,7 +331,7 @@ func (a *App) setPassword(ctx context.Context, u store.User, password string, mu
 	if err != nil {
 		return err
 	}
-	return a.st.SetPassword(ctx, u.ID, hash, mustChange, max(p.HistoryCount-1, 0))
+	return a.storePassword(ctx, u.ID, hash, mustChange, max(p.HistoryCount-1, 0))
 }
 
 // ---- passkeys
@@ -604,7 +615,7 @@ func (a *App) completeProvider(ctx context.Context, r *http.Request, kind, code 
 	}
 	// The first sign-in of a person who already has an account: bind it by the verified e-mail.
 	if same, err := a.st.UsersByEmail(ctx, email); err == nil && len(same) == 1 && same[0].SPARole != "admin" {
-		if err := a.st.BindExternal(ctx, same[0].ID, kind, sub); err != nil {
+		if err := a.bindExternal(ctx, same[0].ID, kind, sub); err != nil {
 			return store.User{}, err
 		}
 		a.st.Audit(ctx, "spa", "user.linked", same[0].Username, "", map[string]any{"source": kind})

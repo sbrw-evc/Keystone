@@ -58,7 +58,7 @@ func (a *App) account(ctx context.Context, u store.User, s store.Session) (accou
 		return acc, err
 	}
 	acc.Passkeys = len(keys)
-	t, err := a.st.TOTPOf(ctx, u.ID)
+	t, err := a.totpOf(ctx, u.ID)
 	if err != nil {
 		return acc, err
 	}

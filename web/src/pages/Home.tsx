@@ -9,7 +9,7 @@ import { canAudit, useAuth, useLoad } from '../lib/auth';
 export function stepText(id: Step['id'], t: TFn): { title: string; text: string } {
   switch (id) {
     case 'public_url':
-      return { title: t('Set the public address of Keystone'), text: t('SPA_PUBLIC_URL is the issuer that applications trust; set it in the deployment.') };
+      return { title: t('Set the public address of Keystone'), text: t('The public address is the issuer that applications trust. Set it in Settings → General before connecting applications.') };
     case 'policy':
       return { title: t('Tighten the password policy'), text: t('Block common passwords, keep a password history and lock accounts after wrong passwords.') };
     case 'passkey':

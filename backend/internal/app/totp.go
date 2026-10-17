@@ -3,25 +3,20 @@ package app
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"net/http"
 	"time"
 
 	"rsc.io/qr"
 
-	"github.com/sbrw-evc/keystone/internal/secrets"
 	"github.com/sbrw-evc/keystone/internal/store"
 	"github.com/sbrw-evc/keystone/internal/totp"
 )
 
 // The second factor of the sign-in with a password (local accounts and LDAP / Active Directory): an authenticator
-// app (TOTP, RFC 6238) and one-time recovery codes. The secret is kept like Keystone's other secrets — in the secret
-// store (OpenBao, or sealed with the master key in the database) at totp/<user id> — and the recovery codes only as
-// keyed hashes. A passkey sign-in is two-factor by itself and never asks for a code.
+// app (TOTP, RFC 6238) and one-time recovery codes. The secret and the keyed hashes of the recovery codes are kept
+// in the secret store (OpenBao) at users/<user id>/totp; the database knows only whether it is on and the last step. A passkey sign-in is two-factor by itself and never asks for a code.
 
 const recoveryKeyPath = "totp/recovery-key"
-
-func secretTOTP(userID string) string { return "totp/" + userID }
 
 var (
 	errWrongCode = fail(http.StatusUnauthorized, "wrong_code", "The code is wrong or has expired")
@@ -68,7 +63,7 @@ func (a *App) proceed(w http.ResponseWriter, r *http.Request, u store.User, p pe
 		p.Method = "pwd"
 	}
 	if !p.MFA {
-		t, err := a.st.TOTPOf(ctx, u.ID)
+		t, err := a.totpOf(ctx, u.ID)
 		if err != nil {
 			return signedIn{}, err
 		}
@@ -117,19 +112,23 @@ func (a *App) checkCode(ctx context.Context, u store.User, code, ip string) erro
 		return errWrongCode
 	}
 	if recovery {
-		t, _ := a.st.TOTPOf(ctx, u.ID)
+		t, _ := a.totpOf(ctx, u.ID)
 		a.st.Audit(ctx, u.Username, "totp.recovery_used", u.Username, ip, map[string]any{"left": t.RecoveryLeft})
 	}
 	return nil
 }
 
 func (a *App) matchCode(ctx context.Context, u store.User, code string) (ok, recovery bool, err error) {
-	t, err := a.st.TOTPOf(ctx, u.ID)
+	t, err := a.totpOf(ctx, u.ID)
 	if err != nil || !t.Enabled {
 		return false, false, err
 	}
 	if totp.IsCode(code) {
-		secret := secretsValue(ctx, a, secretTOTP(u.ID), "secret")
+		rec, err := a.totpSecret(ctx, u.ID)
+		if err != nil {
+			return false, false, err
+		}
+		secret := rec.Secret
 		step, match := totp.Check(secret, code, a.now())
 		if !match || secret == "" {
 			return false, false, nil
@@ -145,7 +144,7 @@ func (a *App) matchCode(ctx context.Context, u store.User, code string) (ok, rec
 	if err != nil {
 		return false, false, err
 	}
-	used, err := a.st.UseRecoveryCode(ctx, u.ID, h)
+	used, err := a.useRecovery(ctx, u.ID, h)
 	return used, used, err
 }
 
@@ -180,16 +179,18 @@ func (a *App) beginSetup(ctx context.Context, u store.User) (totpSetup, error) {
 	if !passwordAccount(u) {
 		return totpSetup{}, fail(http.StatusConflict, "totp_not_password", "Two-step verification is for accounts that sign in with a password")
 	}
-	m, err := a.sec.Get(ctx, secretTOTP(u.ID))
-	if errors.Is(err, secrets.ErrNotFound) {
-		m, err = map[string]string{}, nil
-	}
+	secret := totp.NewSecret()
+	unlock, err := a.st.LockUser(ctx, u.ID)
 	if err != nil {
 		return totpSetup{}, err
 	}
-	secret := totp.NewSecret()
-	m["pending"] = secret
-	if err := a.sec.Put(ctx, secretTOTP(u.ID), m); err != nil {
+	t, err := a.totpSecret(ctx, u.ID)
+	if err == nil {
+		t.Pending = secret
+		err = a.putTOTP(ctx, u.ID, t)
+	}
+	unlock()
+	if err != nil {
 		return totpSetup{}, err
 	}
 	issuer := a.general(ctx).Organization
@@ -207,15 +208,14 @@ func (a *App) beginSetup(ctx context.Context, u store.User) (totpSetup, error) {
 
 // confirmSetup turns the pending secret on when code matches it, and returns the new recovery codes (shown once).
 func (a *App) confirmSetup(ctx context.Context, u store.User, code, ip string) ([]string, error) {
-	m, err := a.sec.Get(ctx, secretTOTP(u.ID))
-	if err != nil && !errors.Is(err, secrets.ErrNotFound) {
+	t, err := a.totpSecret(ctx, u.ID)
+	if err != nil {
 		return nil, err
 	}
-	pending := m["pending"]
-	if pending == "" {
+	if t.Pending == "" {
 		return nil, fail(http.StatusBadRequest, "totp_no_setup", "Start setting up the authenticator app again")
 	}
-	step, ok := totp.Check(pending, code, a.now())
+	step, ok := totp.Check(t.Pending, code, a.now())
 	if !ok {
 		a.st.Audit(ctx, u.Username, "totp.failed", u.Username, ip, map[string]any{"setup": true})
 		return nil, errWrongCode
@@ -224,11 +224,11 @@ func (a *App) confirmSetup(ctx context.Context, u store.User, code, ip string) (
 	if err != nil {
 		return nil, err
 	}
-	if err := a.sec.Put(ctx, secretTOTP(u.ID), map[string]string{"secret": pending}); err != nil {
+	if err := a.putTOTP(ctx, u.ID, totpRecord{Secret: t.Pending, Recovery: hashes}); err != nil {
 		return nil, err
 	}
 	before, _ := a.st.TOTPOf(ctx, u.ID)
-	if err := a.st.EnableTOTP(ctx, u.ID, step, hashes); err != nil {
+	if err := a.st.EnableTOTP(ctx, u.ID, step); err != nil {
 		return nil, err
 	}
 	a.st.Audit(ctx, u.Username, "totp.enabled", u.Username, ip, map[string]any{"replaced": before.Enabled})
@@ -241,10 +241,7 @@ func (a *App) removeTOTP(ctx context.Context, userID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if err := a.sec.Delete(ctx, secretTOTP(userID)); err != nil && !errors.Is(err, secrets.ErrNotFound) {
-		return had, err
-	}
-	return had, nil
+	return had, a.forget(ctx, secretTOTP(userID))
 }
 
 // ---- the sign-in steps (public, with the ticket of the password step)
@@ -361,7 +358,7 @@ type totpView struct {
 func (a *App) myTOTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	u := current(r).User
-	t, err := a.st.TOTPOf(ctx, u.ID)
+	t, err := a.totpOf(ctx, u.ID)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -373,7 +370,7 @@ func (a *App) myTOTP(w http.ResponseWriter, r *http.Request) {
 func (a *App) myTOTPSetup(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	u := current(r).User
-	t, err := a.st.TOTPOf(ctx, u.ID)
+	t, err := a.totpOf(ctx, u.ID)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -428,7 +425,7 @@ func (a *App) myCodeAction(w http.ResponseWriter, r *http.Request) (store.User, 
 		return store.User{}, false
 	}
 	u := current(r).User
-	if t, err := a.st.TOTPOf(ctx, u.ID); err != nil || !t.Enabled {
+	if t, err := a.totpOf(ctx, u.ID); err != nil || !t.Enabled {
 		if err == nil {
 			err = errNoTOTP
 		}
@@ -471,7 +468,7 @@ func (a *App) myRecoveryCodes(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	if err := a.st.ReplaceRecoveryCodes(ctx, u.ID, hashes); err != nil {
+	if err := a.replaceRecovery(ctx, u.ID, hashes); err != nil {
 		writeError(w, err)
 		return
 	}

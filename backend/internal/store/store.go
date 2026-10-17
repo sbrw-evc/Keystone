@@ -33,7 +33,20 @@ type Store struct {
 // Open connects and applies the migrations that have not run yet (under an advisory lock, so replicas starting
 // together migrate once).
 func Open(ctx context.Context, url string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, url)
+	return OpenPassword(ctx, url, "")
+}
+
+// OpenPassword is Open with the password kept apart from the connection string (the string in bootstrap.json has
+// none; the password comes from the secret store). An empty password keeps the one of the string, if any.
+func OpenPassword(ctx context.Context, url, password string) (*Store, error) {
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf("database address: %w", err)
+	}
+	if password != "" {
+		cfg.ConnConfig.Password = password
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}

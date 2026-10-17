@@ -3,7 +3,10 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/sbrw-evc/keystone/internal/passkey"
 )
@@ -331,14 +334,14 @@ type Application struct {
 	RedirectURIs   []string   `json:"redirect_uris"`
 	LogoutURIs     []string   `json:"logout_uris"`
 	ClientID       string     `json:"client_id"`
-	SecretHash     string     `json:"-"`
-	TokenHash      string     `json:"-"`
 	Roles          []Role     `json:"roles"`
 	DefaultRole    string     `json:"default_role"`
 	RolesPublished *time.Time `json:"roles_published,omitempty"`
 	LastSyncAt     *time.Time `json:"last_sync_at,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	// UserImportUntil: the application may move its local users to Keystone until then (POST /api/spa/v1/users/import).
+	UserImportUntil *time.Time `json:"user_import_until,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // legacyAppTypes maps the application type IDs used before the products of the Umbrella family were renamed to
@@ -353,16 +356,16 @@ func CanonicalAppType(t string) string {
 	return t
 }
 
-const appCols = `id, type, name, base_url, redirect_uris, logout_uris, client_id, secret_hash, token_hash, roles, default_role,
-	roles_published, last_sync_at, created_at, updated_at`
+const appCols = `id, type, name, base_url, redirect_uris, logout_uris, client_id, roles, default_role,
+	roles_published, last_sync_at, user_import_until, created_at, updated_at`
 
 type scanner interface{ Scan(...any) error }
 
 func scanApp(row scanner) (Application, error) {
 	var a Application
 	var roles []byte
-	err := row.Scan(&a.ID, &a.Type, &a.Name, &a.BaseURL, &a.RedirectURIs, &a.LogoutURIs, &a.ClientID, &a.SecretHash, &a.TokenHash,
-		&roles, &a.DefaultRole, &a.RolesPublished, &a.LastSyncAt, &a.CreatedAt, &a.UpdatedAt)
+	err := row.Scan(&a.ID, &a.Type, &a.Name, &a.BaseURL, &a.RedirectURIs, &a.LogoutURIs, &a.ClientID,
+		&roles, &a.DefaultRole, &a.RolesPublished, &a.LastSyncAt, &a.UserImportUntil, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		return a, mapErr(err)
 	}
@@ -399,10 +402,7 @@ func (s *Store) ApplicationByClientID(ctx context.Context, clientID string) (App
 	return scanApp(s.DB.QueryRow(ctx, `SELECT `+appCols+` FROM applications WHERE client_id = $1`, clientID))
 }
 
-func (s *Store) ApplicationByToken(ctx context.Context, tokenHash string) (Application, error) {
-	return scanApp(s.DB.QueryRow(ctx, `SELECT `+appCols+` FROM applications WHERE token_hash = $1`, tokenHash))
-}
-
+// SaveApplication creates or updates an application (its client secret and federation token are in the secret store).
 func (s *Store) SaveApplication(ctx context.Context, a Application) error {
 	roles, _ := json.Marshal(a.Roles)
 	if a.RedirectURIs == nil {
@@ -411,14 +411,39 @@ func (s *Store) SaveApplication(ctx context.Context, a Application) error {
 	if a.LogoutURIs == nil {
 		a.LogoutURIs = []string{}
 	}
-	_, err := s.DB.Exec(ctx, `INSERT INTO applications (id, type, name, base_url, redirect_uris, logout_uris, client_id, secret_hash, token_hash,
-		roles, default_role, roles_published) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	_, err := s.DB.Exec(ctx, `INSERT INTO applications (id, type, name, base_url, redirect_uris, logout_uris, client_id,
+		roles, default_role, roles_published) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (id) DO UPDATE SET type = excluded.type, name = excluded.name, base_url = excluded.base_url,
-		redirect_uris = excluded.redirect_uris, logout_uris = excluded.logout_uris, secret_hash = excluded.secret_hash,
-		token_hash = excluded.token_hash, roles = excluded.roles, default_role = excluded.default_role,
-		roles_published = excluded.roles_published, updated_at = now()`,
-		a.ID, a.Type, a.Name, a.BaseURL, a.RedirectURIs, a.LogoutURIs, a.ClientID, a.SecretHash, a.TokenHash, roles, a.DefaultRole, a.RolesPublished)
+		redirect_uris = excluded.redirect_uris, logout_uris = excluded.logout_uris, roles = excluded.roles,
+		default_role = excluded.default_role, roles_published = excluded.roles_published, updated_at = now()`,
+		a.ID, a.Type, a.Name, a.BaseURL, a.RedirectURIs, a.LogoutURIs, a.ClientID, roles, a.DefaultRole, a.RolesPublished)
 	return mapErr(err)
+}
+
+// SetUserImport opens the window in which the application may move its local users to Keystone (until), or closes
+// it (nil).
+func (s *Store) SetUserImport(ctx context.Context, id string, until *time.Time) error {
+	tag, err := s.DB.Exec(ctx, `UPDATE applications SET user_import_until = $2, updated_at = now() WHERE id = $1`, id, until)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// TakeUserImport closes the import window of the application when it is open at now and returns when it would have
+// closed (nil when it was not open), so that of several requests at once only one imports. The caller opens it
+// again (SetUserImport) when nobody was imported.
+func (s *Store) TakeUserImport(ctx context.Context, id string, now time.Time) (*time.Time, error) {
+	var until time.Time
+	err := s.DB.QueryRow(ctx, `UPDATE applications a SET user_import_until = NULL FROM (SELECT id, user_import_until FROM applications
+		WHERE id = $1 AND user_import_until > $2 FOR UPDATE) old WHERE a.id = old.id RETURNING old.user_import_until`, id, now).Scan(&until)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &until, nil
 }
 
 func (s *Store) ApplicationSynced(ctx context.Context, id string) {
@@ -587,4 +612,11 @@ func (c Ceremonies) Take(id string) ([]byte, bool) {
 	var data []byte
 	err := c.S.DB.QueryRow(context.Background(), `DELETE FROM passkey_ceremonies WHERE id = $1 AND expires_at > now() RETURNING data`, id).Scan(&data)
 	return data, err == nil
+}
+
+// AddAssignment gives a subject a role in an application (nothing when it has it already).
+func (s *Store) AddAssignment(ctx context.Context, appID, subjectType, subjectID, role string) error {
+	_, err := s.DB.Exec(ctx, `INSERT INTO role_assignments (app_id, subject_type, subject_id, role) VALUES ($1, $2, $3, $4)
+		ON CONFLICT DO NOTHING`, appID, subjectType, subjectID, role)
+	return err
 }

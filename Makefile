@@ -1,7 +1,7 @@
 # Keystone — sign-in and access for the Umbrella family (formerly SPA)
 #   make build   the web app and the server (backend/keystone)
 #   make test    Go tests (set SPA_TEST_POSTGRES for the database tests) and the web tests
-#   make run     run Keystone locally with the built web app (needs SPA_DATABASE_URL and SPA_MASTER_KEY)
+#   make run     run Keystone locally with the built web app (the setup wizard on first start; data in ./data)
 #   make docker  build the image; make up / make down run it with PostgreSQL (docker compose)
 #   make e2e-beacon  end-to-end check with a real Beacon (docs/e2e.md)
 
@@ -35,7 +35,7 @@ test-web: web/node_modules
 	cd web && $(NPM) test
 
 run: build
-	SPA_WEB_DIR=web/dist ./backend/keystone
+	SPA_DATA_DIR=data SPA_WEB_DIR=web/dist ./backend/keystone
 
 # The web app with hot reload on :5173; the API goes to Keystone on :8080.
 dev: web/node_modules

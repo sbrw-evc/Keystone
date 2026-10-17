@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ShieldOff } from 'lucide-react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Shell } from './components/Shell';
@@ -16,6 +16,7 @@ import { PasswordPolicyPage } from './pages/PasswordPolicy';
 import { ProfilePage } from './pages/Profile';
 import { ProvidersPage } from './pages/Providers';
 import { SignInPage } from './pages/SignIn';
+import { SetupPage } from './pages/Setup';
 import { UsersPage } from './pages/Users';
 
 /** Pages behind the sign-in; administration pages need the auditor or administrator role. */
@@ -47,11 +48,28 @@ function NotFound() {
   );
 }
 
+/** Sends every page to the setup wizard while Keystone is not set up (GET /api/setup). */
+function SetupGate({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const [stage, setStage] = useState<string | null>(null);
+  useEffect(() => {
+    fetch('/api/setup')
+      .then((r) => r.json())
+      .then((s: { stage?: string }) => setStage(s.stage ?? 'done'))
+      .catch(() => setStage('done'));
+  }, []);
+  if (stage === null) return <Loading />;
+  if (stage !== 'done' && location.pathname !== '/setup') return <Navigate to="/setup" replace />;
+  return <>{children}</>;
+}
+
 export function App() {
   return (
     <BrowserRouter>
+      <SetupGate>
       <AuthProvider>
         <Routes>
+          <Route path="/setup" element={<SetupPage />} />
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/" element={<Private><HomePage /></Private>} />
           <Route path="/profile" element={<Private><ProfilePage /></Private>} />
@@ -68,6 +86,7 @@ export function App() {
         </Routes>
         <Toasts />
       </AuthProvider>
+      </SetupGate>
     </BrowserRouter>
   );
 }

@@ -199,6 +199,7 @@ export interface Application {
   default_role: string;
   roles_published?: string;
   last_sync_at?: string;
+  user_import_until?: string;
   created_at: string;
   updated_at: string;
   users: number;
@@ -237,11 +238,12 @@ export interface PolicySummary {
 }
 
 export interface General {
-  general: { organization: string; allow_local: boolean };
+  general: { organization: string; allow_local: boolean; public_url: string; trusted_proxies: string[]; session_hours: number };
   passkeys: { enabled: boolean; rp_id: string };
   issuer: string;
   secrets: string;
   public_url_set: boolean;
+  proxy_hint?: string;
 }
 
 export interface LDAPConfig {
