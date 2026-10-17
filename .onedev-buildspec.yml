@@ -71,16 +71,14 @@ jobs:
     buildVersion: '@tag@'
     condition: SUCCESSFUL
     optional: false
-  - !BuildImageStep
+  - !BuildImageWithKanikoStep
     name: image keystone
-    buildPath: .
     output: !RegistryOutput
-      tags: '@server_host@/monitoring/keystone/keystone:@file:.ci/version@ @server_host@/monitoring/keystone/keystone:@file:.ci/minor@ @server_host@/monitoring/keystone/keystone:latest'
+      destinations: '@server@/monitoring/keystone/keystone:@file:.ci/version@ @server@/monitoring/keystone/keystone:@file:.ci/minor@ @server@/monitoring/keystone/keystone:latest'
     registryLogins:
       - registryUrl: '@server_url@'
         userName: '@job_token@'
         passwordSecret: onedev-token
-    platforms: linux/amd64
     condition: SUCCESSFUL
     optional: false
   - !CommandStep
@@ -92,7 +90,7 @@ jobs:
       commands: |
         set -eu
         V=$(cat .ci/version)
-        sh .onedev/bundle.sh "@server_host@/monitoring/keystone/keystone" "$V" "@server_url@/@project_path@/~builds/@build_number@/artifacts"
+        sh .onedev/bundle.sh "@server@/monitoring/keystone/keystone" "$V" "@server_url@/@project_path@/~builds/@build_number@/artifacts"
     runAs: 0:0
     useTTY: true
     condition: SUCCESSFUL
@@ -105,19 +103,26 @@ jobs:
     optional: false
   - !SetBuildDescriptionStep
     name: build description
-    buildDescription: 'Keystone @tag@: images @server_host@/monitoring/keystone/... (@tag@, latest), the deploy bundle and its notes are in the artifacts.'
+    buildDescription: 'Keystone @tag@: images @server@/monitoring/keystone/... (@tag@, latest), the deploy bundle and its notes are in the artifacts.'
     condition: SUCCESSFUL
     optional: false
-  - !RunImagetoolsStep
-    name: 'GitHub: copy image keystone'
-    arguments: create --tag ghcr.io/sbrw-evc/keystone:@file:.ci/version@ --tag ghcr.io/sbrw-evc/keystone:@file:.ci/minor@ --tag ghcr.io/sbrw-evc/keystone:latest @server_host@/monitoring/keystone/keystone:@file:.ci/version@
-    registryLogins:
-      - registryUrl: '@server_url@'
-        userName: '@job_token@'
-        passwordSecret: onedev-token
-      - registryUrl: ghcr.io
-        userName: sbrw-evc
-        passwordSecret: github-token
+  - !CommandStep
+    name: 'GitHub: copy images'
+    runInContainer: true
+    image: gcr.io/go-containerregistry/crane:debug
+    interpreter: !PosixInterpreter
+      shell: sh
+      commands: |
+        set -eu
+        V=$(cat .ci/version)
+        M=$(cat .ci/minor)
+        crane auth login @server@ -u '@job_token@' -p '@secret:onedev-token@'
+        crane auth login ghcr.io -u sbrw-evc -p '@secret:github-token@'
+        crane copy @server@/monitoring/keystone/keystone:$V ghcr.io/sbrw-evc/keystone:$V
+        crane tag ghcr.io/sbrw-evc/keystone:$V $M
+        crane tag ghcr.io/sbrw-evc/keystone:$V latest
+    runAs: 0:0
+    useTTY: true
     condition: SUCCESSFUL
     optional: true
   - !CommandStep
