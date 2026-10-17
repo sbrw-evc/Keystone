@@ -1,0 +1,225 @@
+# Keystone
+
+*Formerly **SPA (Single Point of Authorization)**. Keystone — sign-in and access for the Umbrella family.*
+
+[Русская версия](Home-ru.md)
+
+Keystone is the one place where the people of the Umbrella family sign in and where their access is decided. It keeps
+the accounts, groups, the password policy, passkeys, the connections to directories (LDAP / Active Directory,
+Microsoft Entra ID) and to external sign-in providers (Google, Apple, any OpenID Connect provider), and it decides
+which roles a person has in each application.
+
+**Beacon, Current, Ledger, Network Control** and any other OpenID Connect application keep
+no passwords, no password policy, no passkeys and no directory settings: they send people to Keystone to sign in, read
+their people and roles from Keystone's federation API, publish their role catalogue to Keystone and enforce the roles Keystone
+gives them.
+
+![Sign-in](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/signin-light.png)
+
+- [docs/protocol.md](protocol.md) — how applications connect to Keystone (OpenID Connect, the connection key, the
+  federation API, user synchronisation).
+- [docs/api.md](api.md) — the HTTP API: the OpenID Connect provider, the federation API and the `/api/v1`
+  API of the web app.
+- [docs/processes.md](processes.md) — the business processes inside Keystone; between the applications of the
+  family: [family.md](https://github.com/sbrw-evc/current/blob/HEAD/docs/family.md).
+
+The other members of the family: [Beacon](https://github.com/sbrw-evc/beacon) (alerts from monitoring systems become
+incidents, paging and response; formerly Umbrella Monitoring), [Ledger](https://github.com/sbrw-evc/ledger)
+(inventory — DCIM/IPAM — and spreadsheet databases; formerly Inventory DB), [Current](https://github.com/sbrw-evc/current)
+(network traffic and network devices; formerly Umbrella Flow) and Network Control.
+
+## What it does
+
+| | |
+| --- | --- |
+| Sign-in | local passwords under the password policy, LDAP / Active Directory, passkeys (Windows Hello, Touch ID, Face ID, Android, security keys), Microsoft Entra ID, Google, Apple, any OpenID Connect provider |
+| People and groups | local accounts and accounts from directories and providers; Keystone groups and directory groups (by DN or Entra object ID, created ahead of their members' first sign-in) |
+| Applications | a three-step wizard connects an application and shows its connection key once; rules *person or group → role* decide who signs in to which application with which roles |
+| Two-step verification | an authenticator app (TOTP, RFC 6238) as the second factor after a password (local or directory), one-time recovery codes; the password policy can require it of administrators or of everyone; a passkey counts as two factors by itself |
+| Password policy | length, digits, special characters, mixed case, allowed alphabets, common-password blocking, lifetime with an expiry warning, history, lockout, a required second factor |
+| Self-service | change the password (also an expired one, during the sign-in), set up two-step verification, add, rename and remove passkeys, see and end sessions |
+| Audit | every sign-in and every change, searchable |
+| Interface | English and Russian, light and dark theme, the Umbrella design |
+
+## Screens
+
+**Home** — the applications of the person, and the first steps for administrators.
+
+![Home](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/home-light.png)
+![Home, dark](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/home-dark.png)
+
+**Applications** — connect an application in three steps: the application, who gets which role, the connection key.
+
+![Applications](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/applications-light.png)
+![Connect: application](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/wizard-1-application.png)
+![Connect: access](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/wizard-2-access.png)
+![Connect: connection key](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/wizard-3-key.png)
+![Applications, dark](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/applications-dark.png)
+
+**Users and groups**
+
+![Users](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/users-light.png)
+![Users, dark](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/users-dark.png)
+![Groups](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/groups.png)
+![A directory group by its DN](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/groups-directory.png)
+
+**Settings** — password policy, directories, sign-in providers, general settings and the signing key.
+
+![Password policy](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/password-policy.png)
+![Directories](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/directories.png)
+![Sign-in providers](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/providers.png)
+![General](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/general.png)
+![Audit log](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/audit.png)
+
+**Account and security** — password, two-step verification, passkeys and sessions of the signed-in person.
+
+![Profile](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/profile-light.png)
+![Profile, dark](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/profile-dark.png)
+![Setting up two-step verification](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/profile-totp-setup.png)
+
+**Sign-in** — dark theme, the change of a password at the first sign-in, and the Russian interface.
+
+![Sign-in, dark](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/signin-dark.png)
+![Change of the password](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/signin-change-password.png)
+![The code of the authenticator app](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/signin-totp.png)
+![Two-step verification required by the policy, set up during the sign-in](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/signin-totp-setup-ru.png)
+![Home in Russian](https://onedev.evcsbrw.ru/Monitoring/Keystone/~raw?revision=main&file=docs/screens/home-ru.png)
+
+## Running Keystone
+
+### Docker Compose
+
+```sh
+./install.sh
+```
+
+`install.sh` makes `.env` with a random `POSTGRES_PASSWORD` and the unseal key of OpenBao (`openbao/keys/unseal.key`),
+starts PostgreSQL, OpenBao and Keystone, and prints the address, the PostgreSQL password and the command that shows the
+setup code. Open the address in a browser: the **setup wizard** leads through
+
+1. **the setup code** — a one-time code of 12 characters Keystone prints to its log (`docker compose logs keystone |
+   grep setup_code`) and writes to `/data/setup-code`; without it the wizard accepts nothing, and ten wrong codes
+   replace it with a new one;
+2. **storage** — PostgreSQL (the service of the compose file by default, or your own) and OpenBao: the built-in one,
+   which the wizard initialises (KV v2, an AppRole for Keystone; the root token and the recovery key are shown once
+   and not kept — save them), or an external one with an AppRole (`role_id`, `secret_id`). **Check** tests each;
+3. **the first administrator**, 4. **the organisation and the public address**, 5. **the trusted proxies**.
+
+Keystone switches from the wizard to its normal mode without a restart. The **First steps** list on the home page
+leads through the rest: the password policy, a passkey, a directory, the first application and its roles.
+
+The image (`Dockerfile`) builds the web app with Node, the server with Go, and ships both on a distroless base
+(non-root, about 27 MB). Put Keystone behind a TLS reverse proxy in production and add the proxy in the wizard or in
+**Settings → General**.
+
+### Where things are kept
+
+- **`.env`**: only `POSTGRES_PASSWORD` (for the PostgreSQL of the compose file; Keystone does not read it — the wizard
+  asks for it once) and, optionally, `SPA_PORT`.
+- **`/data/bootstrap.json`** (the `keystone-data` volume, 0600): the address of PostgreSQL without its password, the
+  address of OpenBao and the AppRole `role_id`; `/data/approle/secret_id` (0600) is the only secret on disk.
+- **OpenBao** (KV v2): every password and secret — password hashes and their history (`users/<id>/password`),
+  authenticator apps and recovery codes (`users/<id>/totp`), the hashes of client secrets and federation tokens
+  (`apps/<id>/credentials`, `apptokens/<hash>`), the signing keys, directory and provider secrets, the PostgreSQL
+  password (`infra/postgres`).
+- **PostgreSQL**: what is not secret — people, groups, roles and their rules, applications, the public keys of
+  passkeys, sessions and one-time codes as hashes, settings, the audit log.
+- **Settings → General**: the public address (the issuer), the trusted proxies, the session lifetime.
+
+The process itself reads only `SPA_DATA_DIR` (default `/data`), `SPA_LISTEN` (default `:8080`) and `SPA_WEB_DIR`.
+
+### Upgrading an installation from before the wizard
+
+An installation configured with `SPA_*` / `BAO_*` variables keeps working: when there is no `bootstrap.json`, Keystone
+takes them over once and says so in its log.
+
+- With `SPA_DATABASE_URL` and `BAO_ADDR` + `BAO_TOKEN` it writes `bootstrap.json` itself and starts as before.
+- With `SPA_MASTER_KEY` (secrets sealed in the database) the wizard asks for the code and OpenBao (the PostgreSQL
+  form is filled from the old settings; leave the password empty). Keystone then moves the sealed secrets, password
+  hashes, recovery codes and application credentials into OpenBao and drops them from the database; the signing key,
+  so the issuer and the tokens of applications, stays the same. A database that has people skips the remaining steps.
+- `SPA_PUBLIC_URL`, `SPA_TRUSTED_PROXIES` and `SPA_SESSION_HOURS` go to **Settings → General**.
+
+Before the upgrade: back up the database and `.env`, make sure `.env` has the `POSTGRES_PASSWORD` the database was
+created with (the old compose file used `spa` when it was not set), and run `./install.sh` (it keeps `.env`). After
+it, remove the `SPA_*` and `BAO_*` lines from `.env`.
+
+### Two-step verification
+
+People who sign in with a password — local accounts and LDAP / Active Directory accounts — turn on two-step
+verification in **Account and security**: scan the QR code with an authenticator app (Google Authenticator,
+Microsoft Authenticator, 1Password, Aegis, …; or type the key), confirm with a code, and save the ten one-time
+recovery codes shown once. From then on Keystone asks for the 6-digit code (30-second steps, one step of clock drift
+either way, each code accepted once) after a right password; a recovery code works instead of a code once. Turning
+it off, changing the app and new recovery codes need a current code.
+
+**Password policy → Second factor** makes it *required for administrators* or *required for everyone*: a person who
+must have it and has none sets it up right after the password, before the sign-in finishes (also after a change of an
+expired password). A passkey sign-in is two-factor by itself and never asks for a code; sign-in through Microsoft
+Entra ID, Google, Apple or OpenID Connect leaves the second factor to that provider. An administrator turns off the
+second factor of a person who lost their phone (**Users → Actions**).
+
+The secret is kept like Keystone's other secrets — in OpenBao or sealed with the master key in the database
+(`totp/<user id>`) — and the recovery codes only as keyed hashes (HMAC-SHA256). Wrong codes count like wrong
+passwords (the lockout of the policy, and 20 attempts per address in 5 minutes). Enrolment, turning off, wrong codes
+and used recovery codes go to the audit log. Applications see a password sign-in with a code as `amr: ["pwd", "otp",
+"mfa"]`.
+
+### Connecting an application
+
+**Applications → Connect an application**: choose the type, enter the address, give groups or people roles, and
+copy the **connection key** (`spa1.…`) into the application's `SPA_CONNECTION_KEY`. The application then offers
+"Sign in with Keystone" and synchronises its people every 5 minutes. **Issue a new key** replaces the key; the old one
+stops working at once. Details: [docs/protocol.md](protocol.md).
+
+## Development
+
+```
+backend/   Go server: cmd/keystone, internal/app (HTTP), store (PostgreSQL), policy, totp, passkey, directory, entra, oidcx, secrets
+web/       React + TypeScript + Vite web app (src/pages, src/components, src/i18n)
+scripts/   seed-demo.mjs (demo data through the API), screenshots.mjs (README screenshots with Playwright),
+           e2e-beacon.mjs (end-to-end check with Beacon)
+docs/      protocol.md, api.md, e2e.md, screens/
+```
+
+| | |
+| --- | --- |
+| `make build` | the web app (`web/dist`) and the server (`backend/keystone`) |
+| `make test` | `go vet` and `go test ./...` (set `SPA_TEST_POSTGRES` for the database tests) and the web tests (vitest) |
+| `make run` | build and run Keystone with the built web app (on first start it shows the setup wizard; data in `./data`) |
+| `make dev` | the web app with hot reload on `:5173`, the API proxied to Keystone on `:8080` |
+| `make docker`, `make up`, `make down` | the image; Keystone and PostgreSQL with Docker Compose |
+| `make seed` | demo data in a running Keystone: people, groups, the four Umbrella applications, a password policy |
+| `make screenshots` | the screenshots in `docs/screens` (on an empty database; Playwright with Chromium) |
+| `make e2e-beacon` | end-to-end check of a live Keystone with a real Beacon in Chromium: connecting, roles, sign-in with the second factor, synchronisation, disabling ([docs/e2e.md](e2e.md)) |
+
+The web app follows the Umbrella design (the tokens and controls of Beacon, as in
+Ledger): the shell with the sidebar and the page block, cards, tables, pills, segmented controls and dialogs,
+light and dark themes kept in `localStorage` (`spa.theme`), and English and Russian. The English strings are the
+keys of `web/src/i18n/en.ts` and `ru.ts`; `web/src/i18n/completeness.test.ts` fails when a string used by the app —
+or an error message of the API — lacks a text in either language.
+
+The web app calls only the `/api/v1` API with the session cookie; every request that changes something carries
+`X-Requested-With: spa`. Pages an auditor may read are shown read-only to auditors; the API enforces the roles.
+
+## Compatibility after the rename
+
+Keystone was called SPA. The product, the binary (`cmd/keystone`, `/app/keystone` in the image), the Docker image
+(`keystone`), the compose project and service (`keystone`), the Go module (`github.com/sbrw-evc/keystone`) and the web
+package (`@keystone/web`) carry the new name. These identifiers keep the old spelling on purpose, because connected
+applications and existing installations depend on them:
+
+| kept | why |
+| --- | --- |
+| the Keystone protocol: key prefix `spa1.`, `SPA_CONNECTION_KEY`, `SPA_CONNECTION_KEY_FILE`, `SPA_PUBLIC_URL` in the applications, `/api/spa/v1/*`, `/api/auth/spa/start` and `/api/auth/spa/callback` in the applications, the OpenBao key `spa/connection_key`, the `spa_admin` claim, `source = spa` in the applications | the wire format between Keystone and every connected application ([docs/protocol.md](protocol.md)) |
+| environment variables `SPA_*` (`SPA_DATABASE_URL`, `SPA_MASTER_KEY`, `SPA_TEST_POSTGRES`, …), `BAO_*` | existing deployments |
+| the database name and user `spa`, the compose volume `spa_pgdata`, table and column names (`users.spa_role`) | existing data |
+| the OpenBao mount `spa` (default of `BAO_MOUNT`) | existing secrets |
+| cookies `spa_session`, `spa_sso`; client IDs `spa_…`, federation tokens `spat_…` | sessions and issued credentials stay valid |
+| the CSRF header value `X-Requested-With: spa`, the JSON field `spa_role` | API clients and scripts |
+| the audit actor `spa` for Keystone's own actions | the existing audit log stays searchable |
+| `localStorage` keys `spa.theme`, `spa.sidebar.collapsed`, `umbrella.locale` | people's saved preferences |
+| the application type IDs `umbrella-monitoring`, `inventory-db`, `umbrella-flow` | still accepted by the API and mapped to `beacon`, `ledger`, `current` (migration `0004_app_types.sql` rewrote the stored ones) |
+| `make e2e-monitoring`, `UMBRELLA_MONITORING_DIR`, `UMBRELLA_MONITORING_REF` | aliases of `make e2e-beacon`, `BEACON_DIR`, `BEACON_REF` |
+
+The GitHub repository is to be renamed to `sbrw-evc/keystone`; GitHub redirects the old address.
