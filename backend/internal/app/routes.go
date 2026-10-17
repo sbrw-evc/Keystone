@@ -193,9 +193,11 @@ func (a *App) continueAuthorize(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"next": next})
 }
 
-// web serves the built web app: files as they are, every other path gets index.html (client-side routes).
-func (a *App) web() http.Handler {
-	dir := a.cfg.WebDir
+func (a *App) web() http.Handler { return WebHandler(a.cfg.WebDir) }
+
+// WebHandler serves the built web app in dir: files as they are, every other path gets index.html (client-side
+// routes); /api/ paths it does not know answer 404.
+func WebHandler(dir string) http.Handler {
 	files := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if dir == "" {

@@ -133,6 +133,9 @@ type apiError struct {
 
 func (e *apiError) Error() string { return e.Message }
 
+// HTTPStatus is the status the error answers with (the setup wizard uses it).
+func (e *apiError) HTTPStatus() int { return e.Status }
+
 func fail(status int, code, message string) *apiError {
 	return &apiError{Status: status, Code: code, Message: message}
 }
