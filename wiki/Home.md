@@ -21,11 +21,11 @@ gives them.
 - [docs/api.md](api.md) — the HTTP API: the OpenID Connect provider, the federation API and the `/api/v1`
   API of the web app.
 - [docs/processes.md](processes.md) — the business processes inside Keystone; between the applications of the
-  family: [family.md](https://github.com/sbrw-evc/current/blob/HEAD/docs/family.md).
+  family: [family.md](https://onedev.evcsbrw.ru/Monitoring/Current/~files/main/docs/family.md).
 
-The other members of the family: [Beacon](https://github.com/sbrw-evc/beacon) (alerts from monitoring systems become
-incidents, paging and response; formerly Umbrella Monitoring), [Ledger](https://github.com/sbrw-evc/ledger)
-(inventory — DCIM/IPAM — and spreadsheet databases; formerly Inventory DB), [Current](https://github.com/sbrw-evc/current)
+The other members of the family: [Beacon](https://onedev.evcsbrw.ru/Monitoring/Beacon) (alerts from monitoring systems become
+incidents, paging and response; formerly Umbrella Monitoring), [Ledger](https://onedev.evcsbrw.ru/Monitoring/Ledger)
+(inventory — DCIM/IPAM — and spreadsheet databases; formerly Inventory DB), [Current](https://onedev.evcsbrw.ru/Monitoring/Current)
 (network traffic and network devices; formerly Umbrella Flow) and Network Control.
 
 ## What it does
