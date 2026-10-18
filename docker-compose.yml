@@ -35,7 +35,7 @@ services:
 
   keystone:
     build: .
-    image: keystone:latest
+    image: onedev.evcsbrw.ru/monitoring/keystone/keystone:latest
     restart: unless-stopped
     depends_on:
       postgres:
